@@ -33,6 +33,14 @@ proof -
   ultimately show ?thesis by simp
 qed
 
+lemma w_bound:"1 - w > 1/4"
+proof -
+  have "sqrt 5 - 1 > 1" by (smt (verit, ccfv_SIG) real_sqrt_four real_sqrt_less_iff)
+  then have "w > 1/2" using w_def by force
+  then have "w^2 > 1/4" by (simp add: power_divide w_def)
+  then show ?thesis by (simp add: w_squared)
+qed
+
 type_synonym position = "(int \<times> nat)"
 type_synonym coins = "position set"
 
@@ -122,21 +130,123 @@ proof -
   then show ?thesis using \<open>summable f\<close> sums_iff by blast
 qed
 
-(* We could show the following lemmas... however let's wait if we really need them.
-   TODO we do! *)
+(* kind of specific lemma, but an argument of this form
+   is needed quite often in the following
+*)
+lemma geometric_sum_transformation: "(\<lambda>y. w^y) sums s \<Longrightarrow> (\<lambda>y. c*w^(a+y)) sums (c*w^(a)*s)"
+proof -
+  assume "(\<lambda>y. w^y) sums s"
+  then have sum_unfold: "(\<lambda>n. \<Sum>i<n. (\<lambda>y. w^y) i) \<longlonglongrightarrow> s" by (simp add: sums_def)
+  have "(\<lambda>_. c*w^a) \<longlonglongrightarrow> c*w^a" by simp
+  from this sum_unfold have 
+    "(\<lambda>n. c*w^a * (\<Sum>i<n. (\<lambda>y. w^y) i)) \<longlonglongrightarrow> c*w^a * s"
+    using tendsto_mult by blast
+  moreover have "c*w^a * (\<Sum>i<(n::nat). (\<lambda>y. w^y) i) 
+      = (\<Sum>i<n. (\<lambda>y. c*w^a * w^y) i)" for n
+    using sum_distrib_left by blast
+  moreover have "(\<Sum>i<n. (\<lambda>y. c*w^a * w^y) i) = (\<Sum>i<n. (\<lambda>y. c*w^(a+y)) i)"
+    for n by (metis ab_semigroup_mult_class.mult_ac(1) power_add)
+  ultimately have "(\<lambda>n. (\<Sum>i<n. (\<lambda>y. c*w^(a+y)) i)) \<longlonglongrightarrow> c*w^a * s" by simp
+  (*moreover have "x+5+y = x+y+5" for y by simp
+  ultimately have "(\<lambda>n. (\<Sum>i<n. (\<lambda>y. 2*w^(x+y+5)) i)) \<longlonglongrightarrow> 2*w^(x+5) * s" by simp*)
+  then have "(\<lambda>y. c*w^(a+y)) sums (c*w^a * s)" by (simp add: sums_def)
+  then show ?thesis by simp
+qed
+
+(* TODO remove if not needed? But may be needed for point_pow_summable etc. *)
+lemma summable_nonneg_comparison_test:
+  assumes f_summable: "summable (f::nat \<Rightarrow> real)"
+      and f_dom_g: "\<And>i. g i \<le> f i"
+      and nonneg: "\<And>i. 0 \<le> g i"
+shows "summable g"
+proof -
+  have "\<forall>n. norm (g n) \<le> f n" by (simp add: f_dom_g nonneg)
+  then show ?thesis using summable_comparison_test f_summable by blast
+qed
+
+(* Lemmas about summability of sums that define power_sum *)
+lemma point_pow_all_coins_row_sum_x_eq_0:
+  "x = 0 \<Longrightarrow> (point_pow all_coins x) sums (1/(1-w))"
+proof -
+  let ?f = "point_pow all_coins x"
+  assume "x = 0"
+  then have "?f y = w^y" for y by (simp add: all_coins_def)
+  moreover have "(\<lambda>y. w^y) sums (1/(1-w))" using geometric_sums w_range by force
+  ultimately show ?thesis using sums_cong by blast
+qed
+
+lemma point_pow_all_coins_row_sum_x_ge_0:
+  "x > 0 \<Longrightarrow> (point_pow all_coins x) sums (2*w^x/(1-w))"
+proof -
+  let ?f = "point_pow all_coins x"
+  assume "x > 0"
+  then have f: "?f y = 2 * w^(x+y)" for y by (simp add: all_coins_def)
+  moreover have "(\<lambda>y. w^y) sums (1/(1-w))" using geometric_sums w_range by force
+  ultimately have "(\<lambda>y. 2 * w^(x+y)) sums (2*w^x/(1-w))" 
+    using geometric_sum_transformation[where c=2 and a=x] by fastforce
+  then show ?thesis using f by presburger
+qed
+
+lemma point_pow_all_coins_row_summable: "summable (point_pow all_coins x)"
+proof (cases "x = 0")
+  case True 
+  then show ?thesis using point_pow_all_coins_row_sum_x_eq_0 using summable_def by blast
+next
+  case False
+  then show ?thesis using point_pow_all_coins_row_sum_x_ge_0 using summable_def by blast
+qed
 
 lemma point_pow_summable: "summable (point_pow coins x)" 
 proof -
-  have summable_all: "summable (point_pow all_coins 0)" sorry
-  let ?f0 = "point_pow all_coins 0"
-  (* have "?f0 sums todo" *)
-
-  have point_pow_leq: "point_pow all_coins x \<le> point_pow all_coins 0" sorry
-  have "summable (point_pow all_coins x)" using summable_all point_pow_leq sorry
-  show ?thesis sorry
+  let ?f = "point_pow all_coins x"
+  have "summable ?f" by (rule point_pow_all_coins_row_summable)
+  moreover have "point_pow coins x y \<le> point_pow all_coins x y" for y
+    using all_coins_def w_range by auto
+  ultimately show ?thesis using summable_nonneg_comparison_test w_range by fastforce
 qed
 
-lemma power_sum_summable: "summable (\<lambda>x. suminf (point_pow coins x))" sorry
+lemma power_sum_summable: "summable (\<lambda>x. suminf (point_pow coins x))"
+proof -
+  let ?f = "\<lambda>x. suminf (point_pow all_coins x)"
+  have "1/(1-w) < 4" using w_bound w_range by (simp add: mult_imp_div_pos_less)
+  then have "1/(1-w) \<le> 4" by simp
+  have "?f x \<le> 8 * w^x" for x proof (cases "x = 0")
+    case xeq0: True
+    then have "?f x = 1/(1-w)"
+      using point_pow_all_coins_row_sum_x_eq_0 sums_unique by force
+    moreover have "1/(1-w) \<le> 2/(1-w) * w^0"
+      by (metis diff_ge_0_iff_ge divide_right_mono less_le mult.commute mult_cancel_right2 
+          one_le_numeral power_0 w_range)
+    ultimately show ?thesis using xeq0 \<open>1/(1-w) < 4\<close> by fastforce 
+  next
+    case False
+    then have "?f x = 2*w^x/(1-w)"
+      by (metis bot_nat_0.not_eq_extremum point_pow_all_coins_row_sum_x_ge_0 sums_unique)
+    moreover have "1/(1-w) * w^x < 4 * w^x" using \<open>1/(1-w) < 4\<close> w_range
+      by (meson mult_less_cancel_right_disj zero_less_power)
+    ultimately show ?thesis by force
+  qed
+  moreover have "(\<lambda>x. 8*w^x) sums (8/(1-w))"
+  proof -
+    have "(\<lambda>x. w^x) sums (1/(1-w))" using geometric_sums w_range by force
+    then have "(\<lambda>x. 8*w^(0+x)) sums (8*w^0*1/(1-w))"
+      using geometric_sum_transformation[where a=0] by fastforce
+    then show ?thesis by auto
+  qed
+  then have "summable (\<lambda>x. 8*w^x)" using sums_summable by blast
+  moreover have "0 \<le> suminf (point_pow all_coins x)" for x
+    using point_pow_summable suminf_nonneg w_range by force
+  ultimately have "summable ?f" using summable_nonneg_comparison_test by presburger
+
+  have "point_pow coins x y \<le> point_pow all_coins x y" for x y using all_coins_def w_range by auto
+  then have "suminf (point_pow coins x) \<le> suminf (point_pow all_coins x)" for x 
+    by (meson point_pow_summable suminf_le)
+  moreover have "0 \<le> suminf (point_pow coins x)" for x
+    using point_pow_summable suminf_nonneg w_range by force
+
+  ultimately show ?thesis
+    using \<open>summable ?f\<close> summable_nonneg_comparison_test by presburger
+qed
 
 lemma power_sum_union_singleton:
   "(x,y) \<notin> F \<Longrightarrow> power_sum (F \<union> {(x,y)}) = power_sum F + w^(nat (abs x) + y)"
@@ -246,17 +356,6 @@ lemma point_pow_subset_less: "A \<subseteq> B \<and> (x,y) \<in> B - A
   by (smt (verit, best) DiffD2 Diff_partition Un_iff nat_eq_iff point_pow.elims w_range
         zero_less_nat_eq zero_less_power)
 
-(* TODO remove if not needed? But may be needed for point_pow_summable etc. *)
-lemma summable_nonneg_comparison_test:
-  assumes f_summable: "summable (f::nat \<Rightarrow> real)"
-      and f_dom_g: "\<And>i. g i \<le> f i"
-      and nonneg: "\<And>i. 0 \<le> g i"
-shows "summable g"
-proof -
-  have "\<forall>n. norm (g n) \<le> f n" by (simp add: f_dom_g nonneg)
-  then show ?thesis using summable_comparison_test f_summable by blast
-qed
-
 lemma powersum_subset_less:
   "A \<subset> B \<Longrightarrow> power_sum A < power_sum B"
 proof -
@@ -284,29 +383,6 @@ proof -
   then have "suminf (\<lambda>x. suminf (point_pow B x)) - suminf (\<lambda>x. suminf (point_pow A x)) > 0" 
     using suminf_diff[of "(\<lambda>x. suminf (point_pow B x))" "(\<lambda>x. suminf (point_pow A x))"]
           power_sum_summable by presburger
-  then show ?thesis by simp
-qed
-
-(* kind of specific lemma, but an argument of this form
-   is needed quite often in the following
-*)
-lemma geometric_sum_transformation: "(\<lambda>y. w^y) sums s \<Longrightarrow> (\<lambda>y. c*w^(a+y)) sums (c*w^(a)*s)"
-proof -
-  assume "(\<lambda>y. w^y) sums s"
-  then have sum_unfold: "(\<lambda>n. \<Sum>i<n. (\<lambda>y. w^y) i) \<longlonglongrightarrow> s" by (simp add: sums_def)
-  have "(\<lambda>_. c*w^a) \<longlonglongrightarrow> c*w^a" by simp
-  from this sum_unfold have 
-    "(\<lambda>n. c*w^a * (\<Sum>i<n. (\<lambda>y. w^y) i)) \<longlonglongrightarrow> c*w^a * s"
-    using tendsto_mult by blast
-  moreover have "c*w^a * (\<Sum>i<(n::nat). (\<lambda>y. w^y) i) 
-      = (\<Sum>i<n. (\<lambda>y. c*w^a * w^y) i)" for n
-    using sum_distrib_left by blast
-  moreover have "(\<Sum>i<n. (\<lambda>y. c*w^a * w^y) i) = (\<Sum>i<n. (\<lambda>y. c*w^(a+y)) i)"
-    for n by (metis ab_semigroup_mult_class.mult_ac(1) power_add)
-  ultimately have "(\<lambda>n. (\<Sum>i<n. (\<lambda>y. c*w^(a+y)) i)) \<longlonglongrightarrow> c*w^a * s" by simp
-  (*moreover have "x+5+y = x+y+5" for y by simp
-  ultimately have "(\<lambda>n. (\<Sum>i<n. (\<lambda>y. 2*w^(x+y+5)) i)) \<longlonglongrightarrow> 2*w^(x+5) * s" by simp*)
-  then have "(\<lambda>y. c*w^(a+y)) sums (c*w^a * s)" by (simp add: sums_def)
   then show ?thesis by simp
 qed
 
