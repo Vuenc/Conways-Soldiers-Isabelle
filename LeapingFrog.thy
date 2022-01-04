@@ -25,6 +25,14 @@ proof -
   then show ?thesis using 1 2 by blast
 qed
 
+lemma w_recurrence: "w^(n+1) + w^(n+2) = w^n"
+proof -
+  have "w^(n+1) + w^(n+2) = w^n*(w + w^2)"
+    by (smt (verit) power_add power_one_right right_diff_distrib)
+  moreover have "w + w^2 = 1" using w_squared by simp
+  ultimately show ?thesis by simp
+qed
+
 type_synonym position = "(int \<times> nat)"
 type_synonym coins = "position set"
 
@@ -201,6 +209,10 @@ proof -
     using series_one_term_different samex otherx power_sum_summable by presburger
   then show ?thesis by simp
 qed
+
+corollary power_sum_minus_singleton:
+  "(x,y) \<in> F \<Longrightarrow> power_sum (F - {(x,y)}) = power_sum F - w^(nat (abs x) + y)"
+  using mk_disjoint_insert power_sum_union_singleton by fastforce
 
 lemma finite_power_sum:
   assumes finite: "finite coins"
@@ -464,17 +476,144 @@ theorem initial_coins_leq_one:
 theorem jump_decreases_power_sum: "jump A B \<Longrightarrow> power_sum B \<le> power_sum A"
 proof (induction rule: jump.induct)
   case (left x y A B)
-  
-  then show ?case sorry
+  let ?x = "nat (abs x)"
+  let ?full_diff = "w^(y + nat (abs (x-2))) - w^(y + nat (abs (x-1))) - w^(y + nat (abs x))"
+  have power_sum_B: "power_sum (A - {(x, y), (x - 1, y)} \<union> {(x - 2, y)})
+      = power_sum A + ?full_diff"
+    using \<open>(x, y) \<in> A\<close> \<open>(x-1, y) \<in> A\<close> \<open>(x-2, y) \<notin> A\<close> power_sum_minus_singleton power_sum_union_singleton
+    by (smt (verit, del_insts) Diff_iff Diff_insert2 add.commute insertE insert_Diff prod.inject)
+
+  then have "?full_diff = w^y*w^(nat (abs (x-2))) - w^y*w^(nat (abs (x-1))) - w^y*w^(nat (abs x))" by (metis power_add)
+  then have full_diff_diff: "?full_diff = w^y * (w^(nat (abs (x-2))) - w^(nat (abs (x-1))) - w^(nat (abs x)))" 
+    (is "?full_diff = w^y * ?diff") by (simp add: right_diff_distrib)
+
+  have "?diff  \<le> 0"
+  proof (cases "x \<le> 0")
+    case x_nonpos: True
+    then have "?diff = w^(?x+2) - w^(?x+1) - w^(?x)"
+      by (smt (verit, ccfv_threshold) nat_1_add_1 nat_add_distrib nat_numeral numeral_eq_one_iff)
+    then show ?thesis
+      by (smt (verit, del_insts) w_range w_recurrence zero_less_power)
+  next
+    case x_pos: False
+    then show ?thesis proof (cases "x \<ge> 2")
+      case x_geq_2: True
+      have "?diff = w^(?x-2) - w^(?x-1) - w^(?x)" proof -
+        have "nat (abs (x-2)) = ?x - 2" using x_geq_2 by (simp add: nat_diff_distrib')
+        moreover have "nat (abs (x-1)) = ?x - 1" using x_geq_2 by (simp add: nat_diff_distrib')
+        ultimately show ?thesis by presburger
+      qed
+      then have "?diff = w^(?x-2) - w^(?x-2+1) - w^(?x-2+2)"
+        by (smt (verit, del_insts) Nat.add_diff_assoc2 Nat.diff_diff_right One_nat_def cancel_comm_monoid_add_class.diff_cancel diff_is_0_eq' diff_zero le_add2 linorder_linear nat_0_iff nat_1_add_1 nat_2 nat_diff_distrib plus_1_eq_Suc x_geq_2)
+      then show ?thesis by (smt (verit, ccfv_SIG) w_recurrence)
+    next
+      case x_eq_1_or_2: False
+      then show ?thesis proof (cases "x = 1")
+        case x_eq_1: True
+        then show ?thesis by auto
+      next
+        case x_eq_2: False
+        then show ?thesis using x_eq_1_or_2 x_pos by fastforce
+      qed
+    qed
+  qed
+  moreover have "w^y > 0" by (simp add: w_range)
+  ultimately have "?full_diff \<le> 0" using full_diff_diff zero_less_mult_iff by smt
+  then show ?case using left.hyps(4) by (smt (verit, best) power_sum_B)
 next
+  (* 
+    Luckily, the "right" part is more or less the "left" part with signs changed
+  *)
   case (right x y A B)
-  then show ?case sorry
+  let ?x = "nat (abs x)"
+  let ?full_diff = "w^(y + nat (abs (x+2))) - w^(y + nat (abs (x+1))) - w^(y + nat (abs x))"
+  have power_sum_B: "power_sum (A - {(x, y), (x + 1, y)} \<union> {(x + 2, y)})
+      = power_sum A + ?full_diff"
+    using \<open>(x, y) \<in> A\<close> \<open>(x+1, y) \<in> A\<close> \<open>(x+2, y) \<notin> A\<close> power_sum_minus_singleton power_sum_union_singleton
+    by (smt (z3) Diff_iff Diff_insert2 add.commute insertE insert_Diff prod.inject)
+
+  then have "?full_diff = w^y*w^(nat (abs (x+2))) - w^y*w^(nat (abs (x+1))) - w^y*w^(nat (abs x))" by (metis power_add)
+  then have full_diff_diff: "?full_diff = w^y * (w^(nat (abs (x+2))) - w^(nat (abs (x+1))) - w^(nat (abs x)))" 
+    (is "?full_diff = w^y * ?diff") by (simp add: right_diff_distrib)
+
+  have "?diff  \<le> 0"
+  proof (cases "x \<ge> 0")
+    case x_nonneg: True
+    then have "?diff = w^(?x+2) - w^(?x+1) - w^(?x)"
+      by (smt (verit, ccfv_threshold) nat_1_add_1 nat_add_distrib nat_numeral numeral_eq_one_iff)
+    then show ?thesis
+      by (smt (verit, del_insts) w_range w_recurrence zero_less_power)
+  next
+    case x_neg: False
+    then show ?thesis proof (cases "x \<le> -2")
+      case x_leq_minus2: True
+      have "?diff = w^(?x-2) - w^(?x-1) - w^(?x)" proof -
+        have "nat (abs (x+2)) = ?x - 2" using x_leq_minus2 by (simp add: nat_diff_distrib')
+        moreover have "nat (abs (x+1)) = ?x - 1" using x_leq_minus2 by (simp add: nat_diff_distrib')
+        ultimately show ?thesis by presburger
+      qed
+      then have "?diff = w^(?x-2) - w^(?x-2+1) - w^(?x-2+2)"
+        by (smt (verit, del_insts) Nat.add_diff_assoc2 Nat.diff_diff_right One_nat_def cancel_comm_monoid_add_class.diff_cancel diff_is_0_eq' diff_zero le_add2 linorder_linear nat_0_iff nat_1_add_1 nat_2 nat_diff_distrib plus_1_eq_Suc x_leq_minus2)
+      then show ?thesis by (smt (verit, ccfv_SIG) w_recurrence)
+    next
+      case x_eq_minus_1_or_minus_2: False
+      then show ?thesis proof (cases "x = -1")
+        case x_eq_minus_1: True
+        then show ?thesis by auto
+      next
+        case x_eq_minus_2: False
+        then show ?thesis using x_eq_minus_1_or_minus_2 x_neg by fastforce
+      qed
+    qed
+  qed
+  moreover have "w^y > 0" by (simp add: w_range)
+  ultimately have "?full_diff \<le> 0" using full_diff_diff zero_less_mult_iff by smt
+  then show ?case using right.hyps(4) by (smt (verit, best) power_sum_B)
 next
   case (up x y A B)
-  then show ?case sorry
+  let ?x = "nat (abs x)"
+
+  let ?full_diff = "w^(?x + (y-2)) - w^(?x + (y-1)) - w^(?x + y)"
+  have power_sum_B: "power_sum (A - {(x, y), (x, y-1)} \<union> {(x, y-2)})
+      = power_sum A + ?full_diff"
+    using \<open>(x, y) \<in> A\<close> \<open>(x, y-1) \<in> A\<close> \<open>(x, y-2) \<notin> A\<close> power_sum_minus_singleton power_sum_union_singleton
+    by (smt (verit) Diff_insert2 diff_diff_left insert_Diff insert_iff nat_1_add_1 prod.inject)
+
+  then have "?full_diff = w^(?x)*w^(y-2) - w^(?x)*w^(y-1) - w^(?x)*w^y" by (metis power_add)
+  then have full_diff_diff: "?full_diff = w^(?x) * (w^(y-2) - w^(y-1) - w^y)" 
+    (is "?full_diff = w^(?x) * ?diff") by (simp add: right_diff_distrib)
+
+  have "?diff  \<le> 0"
+  proof (cases "y \<ge> 2")
+    case True
+    then have "?diff = w^(y-2) - w^(y-2+1) - w^(y-2+2)" using nat_le_iff_add by auto
+    then have "?diff = 0" using w_recurrence[where n="y-2"] by simp
+    then show ?thesis by simp
+  next
+    case False
+    then show ?thesis using \<open>(x, y - 1) \<in> A\<close> \<open>(x, y - 2) \<notin> A\<close> by auto
+  qed
+  moreover have "w^?x > 0" by (simp add: w_range)
+  ultimately have "?full_diff \<le> 0" using full_diff_diff zero_less_mult_iff by smt
+  then show ?case using up.hyps(4) by (smt (verit, best) power_sum_B)
 next
   case (down x y A B)
-  then show ?case sorry
+  let ?x = "nat (abs x)"
+
+  let ?full_diff = "w^(?x + (y+2)) - w^(?x + (y+1)) - w^(?x + y)"
+  have power_sum_B: "power_sum (A - {(x, y), (x, y+1)} \<union> {(x, y+2)})
+      = power_sum A + ?full_diff"
+    using \<open>(x, y) \<in> A\<close> \<open>(x, y+1) \<in> A\<close> \<open>(x, y+2) \<notin> A\<close> power_sum_minus_singleton power_sum_union_singleton
+    by (smt (verit) Diff_iff Diff_insert2 add_diff_cancel_left' diff_is_0_eq' insertE insert_Diff nle_le one_neq_zero prod.inject)
+
+  then have "?full_diff = w^(?x)*w^(y+2) - w^(?x)*w^(y+1) - w^(?x)*w^y" by (metis power_add)
+  then have full_diff_diff: "?full_diff = w^(?x) * (w^(y+2) - w^(y+1) - w^y)" 
+    (is "?full_diff = w^(?x) * ?diff") by (simp add: right_diff_distrib)
+
+  have "?diff  \<le> 0" by (smt (verit) w_range w_recurrence zero_less_power)
+  moreover have "w^?x > 0" by (simp add: w_range)
+  ultimately have "?full_diff \<le> 0" using full_diff_diff zero_less_mult_iff by smt
+  then show ?case using down.hyps(4) by (smt (verit, best) power_sum_B)
 qed
 
 end
