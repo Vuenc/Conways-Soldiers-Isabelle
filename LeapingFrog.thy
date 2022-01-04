@@ -1,5 +1,5 @@
 theory LeapingFrog
-  imports Main HOL.Real HOL.NthRoot HOL.Boolean_Algebras HOL.Series
+  imports Main HOL.Real HOL.NthRoot HOL.Boolean_Algebras HOL.Series "HOL-IMP.Star"
 begin
 
 definition w :: "real" where
@@ -46,6 +46,9 @@ inductive jump :: "coins \<Rightarrow> coins \<Rightarrow> bool" where
 | down: "\<lbrakk>(x,y) \<in> A; (x, y+1) \<in> A; (x, y+2) \<notin> A; B = (A - {(x,y), (x,y+1)}) \<union> {(x, y+2)}\<rbrakk>
     \<Longrightarrow> jump A B"
 
+definition jumps :: "coins \<Rightarrow> coins \<Rightarrow> bool"  where
+"jumps = star jump"
+
 lemma example_right: "jump {(0, 0), (1, 0)} {(2, 0)}" using jump.right[of 0 0]
   by (smt (verit, ccfv_SIG) Diff_cancel Diff_iff Un_Diff_cancel Un_Diff_cancel2 insert_iff prod.inject sup_bot.right_neutral)
 lemma example_left: "jump {(0, 0), (-1, 0)} {(-2, 0)}" using jump.left[of 0 0]
@@ -54,6 +57,14 @@ lemma example_up: "jump {(0, 2), (0, 1)} {(0, 0)}" using jump.up[of 0 2]
   by (metis Diff_cancel One_nat_def Un_Diff_cancel2 add_diff_cancel_left' insert_absorb insert_iff insert_is_Un insert_not_empty nat_1_add_1 plus_1_eq_Suc plus_nat.simps(2) prod.inject zero_neq_numeral)
 lemma example_down: "jump {(0, 0), (0, 1)} {(0, 2)}" using jump.down[of 0 0]
   by (metis (no_types, lifting) Diff_cancel One_nat_def Un_Diff_cancel2 add.commute insert_absorb insert_iff insert_is_Un insert_not_empty nat_1_add_1 one_eq_numeral_iff plus_1_eq_Suc plus_nat.simps(2) prod.inject semiring_norm(85) zero_neq_numeral)
+lemma example_two_jumps: "jumps {(0,0), (0,1), (1,2)} {(2,2)}"
+unfolding jumps_def proof (rule star.step)
+  show "jump {(0,0), (0,1), (1,2)} {(0,2), (1,2)}" using jump.down[of 0 0]
+    by (smt (verit, del_insts) Diff_insert2 Diff_insert_absorb One_nat_def add.commute add_diff_cancel_left' insert_absorb insert_commute insert_iff insert_is_Un insert_not_empty nat_1_add_1 plus_1_eq_Suc plus_nat.simps(2) prod.inject zero_neq_numeral)
+  have "jump {(0,2), (1,2)} {(2,2)}" using jump.right[of 0 0]
+    by (smt (verit, del_insts) Diff_cancel Un_Diff_cancel2 insert_absorb insert_iff insert_is_Un insert_not_empty prod.inject right)
+  then show "star jump {(0, 2), (1, 2)} {(2, 2)}" by blast
+qed
 
 definition "symm_diff" (infix \<open>\<triangle>\<close> 70) where
 "symm_diff A B = (A - B) \<union> (B - A)"
@@ -470,10 +481,15 @@ theorem initial_coins_leq_one:
   by (metis assms initial_coins_subset max_initial_coins_eq_one powersum_subset_leq)
 
 
-
-
-
 theorem jump_decreases_power_sum: "jump A B \<Longrightarrow> power_sum B \<le> power_sum A"
+(*
+  We prove this for the four directions we can jump to:
+  The "left" and "right" directions are complicated because x coordinates are integers:
+    we need extra cases depending on if we're on the negative side, positive side, or both
+  The "up" direction is easier because y coordinates are natural numbers; we just have to take
+    care when we're close to zero.
+  The "down" direction is easiest because we don't even have to be careful close to zero.
+*)
 proof (induction rule: jump.induct)
   case (left x y A B)
   let ?x = "nat (abs x)"
@@ -614,6 +630,288 @@ next
   moreover have "w^?x > 0" by (simp add: w_range)
   ultimately have "?full_diff \<le> 0" using full_diff_diff zero_less_mult_iff by smt
   then show ?case using down.hyps(4) by (smt (verit, best) power_sum_B)
+qed
+
+theorem jumps_decrease_power_sum:
+  "jumps A B \<Longrightarrow> power_sum B \<le> power_sum A"
+unfolding jumps_def by (induction rule: star.induct) (fastforce dest: jump_decreases_power_sum)+
+
+
+theorem finite_initial_coins_cannot_reach_goal_field:
+  assumes finite: "finite A"
+      and initial: "initial_coins A"
+      and reaches: "jumps A B"
+    shows "(0, 0) \<notin> B"
+proof (rule ccontr)
+  assume "\<not> (0, 0) \<notin> B"
+  then have "{(0, 0)} \<subseteq> B" by simp
+  have "power_sum A < 1"
+    using initial initial_finite_coins_less_one finite by blast
+  moreover have "power_sum B \<ge> 1"
+    by (metis \<open>{(0, 0)} \<subseteq> B\<close> goal_field_value_1 powersum_subset_leq)
+  moreover have "power_sum A \<ge> power_sum B"
+    using jumps_decrease_power_sum reaches by blast
+  ultimately show "False" by simp
+qed
+
+fun shift :: "coins \<Rightarrow> int \<Rightarrow> coins" where
+"shift coins d = {(x+d, y) |x y. (x, y) \<in> coins}"
+
+lemma shift': "(x, y) \<in> A \<longleftrightarrow> (x+d, y) \<in> shift A d" by simp
+
+lemma tuple_set_eq_iff: "(\<forall>x y. ((x, y) \<in> A) = ((x, y) \<in> B)) \<Longrightarrow> A = B"
+  by fastforce
+
+lemma shift_self_inverse: "shift (shift A d) (-d) = A" (is "?lhs = ?rhs")
+  by (rule tuple_set_eq_iff) force
+
+lemma shift_minus: "shift (A - B) d = shift A d - shift B d" (is "?lhs = ?rhs")
+  by (rule tuple_set_eq_iff) force
+
+lemma shift_union: "shift (A \<union> B) d = shift A d \<union> shift B d" (is "?lhs = ?rhs")
+  by (rule tuple_set_eq_iff) force
+
+lemma shift_finite: "finite A \<Longrightarrow> finite (shift A d)"
+proof (induction rule: finite_induct)
+  case (insert t F)
+  obtain x y where xy: "t = (x, y)" by fastforce
+  have "insert t F = F \<union> {t}" by auto
+  then have "shift (insert t F) d = (shift F d) \<union> (shift {t} d)"
+    using shift_union by presburger
+  moreover have "shift {(x, y)} d = {(x+d, y)}" by simp
+  ultimately show ?case using insert.IH xy by auto
+qed simp
+
+(* TODO generalize the argument used here four times *)
+lemma jump_shift_inv:
+  assumes "jump A B"
+      and A': "A' = shift A d"
+      and B': "B' = shift B d"
+    shows "jump A' B'"
+using \<open>jump A B\<close> A' B' proof (induction rule: jump.induct)
+  case (left x y A B)
+  from left have "(x+d, y) \<in> A'" by simp
+  moreover from left have "(x-1+d, y) \<in> A'" by simp
+  moreover from left have "(x-2+d, y) \<notin> A'" by simp
+  moreover from left have "B' = A' - {(x+d, y), (x-1+d, y)} \<union> {(x-2+d, y)}" (is "B' = A' - ?oldshift \<union> ?newshift")
+  proof -
+    let ?old = "{(x, y), (x - 1, y)}"
+    let ?new = "{(x - 2, y)}"
+    from left have "B' = shift (A - ?old \<union> ?new) d" by blast
+    then have "B' = shift A d - shift ?old d \<union> shift ?new d" using shift_union shift_minus by presburger
+    moreover have "shift ?old d = ?oldshift" by force
+    moreover have "shift ?new d = ?newshift" by force
+    ultimately show ?thesis using left.prems(1) by presburger
+  qed
+  ultimately show ?case by (smt (verit, ccfv_threshold) jump.left)
+next
+  case (right x y A B)
+  from right have "(x+d, y) \<in> A'" by simp
+  moreover from right have "(x+1+d, y) \<in> A'" by simp
+  moreover from right have "(x+2+d, y) \<notin> A'" by simp
+  moreover from right have "B' = A' - {(x+d, y), (x+1+d, y)} \<union> {(x+2+d, y)}" (is "B' = A' - ?oldshift \<union> ?newshift")
+  proof -
+    let ?old = "{(x, y), (x + 1, y)}"
+    let ?new = "{(x + 2, y)}"
+    from right have "B' = shift (A - ?old \<union> ?new) d" by blast
+    then have "B' = shift A d - shift ?old d \<union> shift ?new d" using shift_union shift_minus by presburger
+    moreover have "shift ?old d = ?oldshift" by force
+    moreover have "shift ?new d = ?newshift" by force
+    ultimately show ?thesis using right.prems(1) by presburger
+  qed
+  ultimately show ?case by (smt (verit, ccfv_threshold) jump.right)
+next
+  case (up x y A B)
+  from up have "(x+d, y) \<in> A'" by simp
+  moreover from up have "(x+d, y-1) \<in> A'" by simp
+  moreover from up have "(x+d, y-2) \<notin> A'" by simp
+  moreover from up have "B' = A' - {(x+d, y), (x+d, y-1)} \<union> {(x+d, y-2)}" (is "B' = A' - ?oldshift \<union> ?newshift")
+  proof -
+    let ?old = "{(x, y), (x, y - 1)}"
+    let ?new = "{(x, y - 2)}"
+    from up have "B' = shift (A - ?old \<union> ?new) d" by blast
+    then have "B' = shift A d - shift ?old d \<union> shift ?new d" using shift_union shift_minus by presburger
+    moreover have "shift ?old d = ?oldshift" by force
+    moreover have "shift ?new d = ?newshift" by force
+    ultimately show ?thesis using up.prems(1) by presburger
+  qed
+  ultimately show ?case by (smt (verit, ccfv_threshold) jump.up)
+next
+  case (down x y A B)
+  from down have "(x+d, y) \<in> A'" by simp
+  moreover from down have "(x+d, y+1) \<in> A'" by simp
+  moreover from down have "(x+d, y+2) \<notin> A'" by simp
+  moreover from down have "B' = A' - {(x+d, y), (x+d, y+1)} \<union> {(x+d, y+2)}" (is "B' = A' - ?oldshift \<union> ?newshift")
+  proof -
+    let ?old = "{(x, y), (x, y + 1)}"
+    let ?new = "{(x, y + 2)}"
+    from down have "B' = shift (A - ?old \<union> ?new) d" by blast
+    then have "B' = shift A d - shift ?old d \<union> shift ?new d" using shift_union shift_minus by presburger
+    moreover have "shift ?old d = ?oldshift" by force
+    moreover have "shift ?new d = ?newshift" by force
+    ultimately show ?thesis using down.prems(1) by presburger
+  qed
+  ultimately show ?case by (smt (verit, ccfv_threshold) jump.down)
+qed
+
+lemma jump_shift_inv_eq:
+  assumes A': "A' = shift A d"
+      and B': "B' = shift B d"
+    shows "jump A B \<longleftrightarrow> jump A' B'"
+proof
+  show "jump A B \<Longrightarrow> jump A' B'" using A' B' jump_shift_inv by blast
+  assume "jump A' B'"
+  moreover have "A = shift A' (-d)" using A' shift_self_inverse by presburger
+  moreover have "B = shift B' (-d)" using B' shift_self_inverse by presburger
+  ultimately show "jump A B" using jump_shift_inv by blast
+qed
+
+
+theorem jumps_shift_inv:
+  "jumps A B \<Longrightarrow> jumps (shift A d) (shift B d)"
+unfolding jumps_def by (induction rule: star.induct) (meson jump_shift_inv star.simps)+
+
+theorem finite_initial_coins_cannot_reach_goal_line:
+  assumes finite: "finite A"
+      and initial: "initial_coins A"
+      and reaches: "jumps A B"
+    shows "\<forall>x. (x, 0) \<notin> B"
+proof (rule ccontr)
+  assume "\<not> (\<forall>x. (x, 0) \<notin> B)"
+  then obtain x where "(x, 0) \<in> B" by blast
+  let ?A' = "shift A (-x)"
+  let ?B' = "shift B (-x)"
+  have "finite ?A'" using finite shift_finite by blast
+  moreover have "initial_coins ?A'" using initial initial_coins_def by fastforce
+  moreover have "(0, 0) \<in> ?B'" using \<open>(x, 0) \<in> B\<close> by force
+  moreover have "jumps ?A' ?B'" using jumps_shift_inv reaches by blast
+  ultimately show "False" using finite_initial_coins_cannot_reach_goal_field by blast
+qed
+
+(* TODO maybe make a bit nicer? *)
+lemma jump_keeps_cofinite_coins:
+  assumes "jump A B"
+      and infinite: "infinite A"
+    shows "\<exists>D. finite D \<and> A \<inter> B = A - D"
+using \<open>jump A B\<close> infinite proof (induction rule: jump.induct)
+  case (left x y A B)
+  then show ?case by (metis Int_insert_right_if0 Un_Diff_Int Un_Int_eq(1) Un_insert_right
+        finite.emptyI finite.insertI sup_bot.right_neutral)
+next
+  case (right x y A B)
+  then show ?case by (metis Int_insert_right_if0 Un_Diff_Int Un_Int_eq(1) Un_insert_right
+        finite.emptyI finite.insertI sup_bot.right_neutral)
+next
+  case (up x y A B)
+  then show ?case by (metis Int_insert_right_if0 Un_Diff_Int Un_Int_eq(1) Un_insert_right
+        finite.emptyI finite.insertI sup_bot.right_neutral)
+next
+  case (down x y A B)
+  then show ?case by (metis Int_insert_right_if0 Un_Diff_Int Un_Int_eq(1) Un_insert_right
+        finite.emptyI finite.insertI sup_bot.right_neutral)
+qed
+
+(* copied in from tutorial 3, because I struggled to complete the induction
+with the usual star: *)
+inductive star' :: "('a \<Rightarrow> 'a \<Rightarrow> bool) \<Rightarrow> 'a \<Rightarrow> 'a \<Rightarrow> bool" for r 
+  where
+refl': "star' r x x" |
+step': "\<lbrakk>star' r x y; r y z\<rbrakk> \<Longrightarrow> star' r x z"
+
+lemma star'_prepend: "\<lbrakk>star' r y z; r x y\<rbrakk> \<Longrightarrow> star' r x z"
+  by (induction rule: star'.induct) (auto intro: star'.intros)
+
+lemma star_eq_star':  "star r x y = star' r x y"
+  proof
+  assume "star r x y"
+  thus "star' r x y"
+    by induct (auto intro: star'.intros star'_prepend)
+next
+  assume "star' r x y"
+  thus "star r x y"
+    by induct (auto intro: star_trans)
+qed
+(* end of copied in part *)
+
+lemma jumps_keeps_cofinite_coins:
+  assumes reaches: "jumps A B"
+      and infinite: "infinite A"
+    shows "\<exists>D. finite D \<and> A \<inter> B = A - D"
+  using reaches infinite unfolding jumps_def
+proof -
+  have "\<lbrakk>star' jump A B; infinite A\<rbrakk> \<Longrightarrow> \<exists>D. finite D \<and> A \<inter> B = A - D"
+  proof (induction rule: star'.induct)
+    case (refl' X)
+    then show ?case by auto
+  next
+    case (step' X Y Z)
+    from step' obtain D1 where D1: "finite D1 \<and> X \<inter> Y = X - D1" by blast
+    from this have "infinite Y" by (metis Diff_infinite_finite finite_Int step'.prems)
+    from this step' obtain D2 where D2: "finite D2 \<and> Y \<inter> Z = Y - D2" using jump_keeps_cofinite_coins
+      by fastforce
+
+    let ?D3 = "X - (X \<inter> Z)"
+    have "(X \<inter> Y) \<inter> (Y \<inter> Z) \<subseteq> X \<inter> Z" by blast
+    moreover have "(X \<inter> Y) \<inter> (Y \<inter> Z) = X - (D1 \<union> D2)" using D1 D2 by blast
+    ultimately have "finite ?D3"
+      by (metis D1 D2 Diff_Diff_Int Diff_Int finite_Int finite_UnI sup.absorb_iff1)
+    then show ?case by blast
+  qed
+  then show ?thesis using infinite jumps_def reaches star_eq_star' by fastforce
+qed
+
+theorem initial_coins_cannot_reach_goal_field:
+  assumes initial: "initial_coins A"
+      and reaches: "jumps A B"
+    shows "(0, 0) \<notin> B"
+proof (cases "finite A")
+  case True
+  then show ?thesis using finite_initial_coins_cannot_reach_goal_field initial reaches by simp
+next
+  case infiniteA: False
+  show ?thesis
+  proof (rule ccontr)
+    assume "\<not> (0, 0) \<notin> B"
+    then have "{(0, 0)} \<subseteq> B" by simp
+    have "power_sum A \<le> 1"
+      using initial initial_coins_leq_one by blast
+    moreover have "power_sum B > 1"
+    proof -
+      have "\<exists>D. finite D \<and> A \<inter> B = A - D" 
+        using reaches infiniteA jumps_keeps_cofinite_coins by blast
+      then have "A \<inter> B \<noteq> {}" by (metis finite.emptyI finite_Diff2 infiniteA)
+      then obtain x y where xy: "(x, y) \<in> A \<inter> B" by  fastforce
+      then have "{(x,y), (0,0)} \<subseteq> B" using \<open>{(0, 0)} \<subseteq> B\<close> by auto
+      have "(x,y) \<noteq> (0, 0)" proof -
+        have "(x, y) \<in> A" using xy by simp
+        then have "below_the_line (x, y)" using initial initial_coins_def by blast
+        then show ?thesis by force
+      qed
+      then have "power_sum {(x,y), (0,0)} = w^(nat (abs x) + y) + 1"
+        by (smt (verit) Diff_insert_absorb goal_field_value_1 insertCI insert_absorb
+           power_sum_minus_singleton singleton_insert_inj_eq)
+      then show ?thesis using \<open>{(x,y), (0,0)} \<subseteq> B\<close>
+        by (smt (verit, ccfv_SIG) powersum_subset_leq w_range zero_less_power)
+    qed
+    moreover have "power_sum A \<ge> power_sum B"
+      using jumps_decrease_power_sum reaches by blast
+    ultimately show "False" by simp
+  qed
+qed
+
+theorem initial_coins_cannot_reach_goal_line:
+  assumes initial: "initial_coins A"
+      and reaches: "jumps A B"
+    shows "\<forall>x. (x, 0) \<notin> B"
+proof (rule ccontr)
+  assume "\<not> (\<forall>x. (x, 0) \<notin> B)"
+  then obtain x where "(x, 0) \<in> B" by blast
+  let ?A' = "shift A (-x)"
+  let ?B' = "shift B (-x)"
+  have "initial_coins ?A'" using initial initial_coins_def by fastforce
+  moreover have "(0, 0) \<in> ?B'" using \<open>(x, 0) \<in> B\<close> by force
+  moreover have "jumps ?A' ?B'" using jumps_shift_inv reaches by blast
+  ultimately show "False" using initial_coins_cannot_reach_goal_field by blast
 qed
 
 end
