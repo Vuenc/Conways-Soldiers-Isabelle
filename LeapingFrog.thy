@@ -66,26 +66,6 @@ unfolding jumps_def proof (rule star.step)
   then show "star jump {(0, 2), (1, 2)} {(2, 2)}" by blast
 qed
 
-definition "symm_diff" (infix \<open>\<triangle>\<close> 70) where
-"symm_diff A B = (A - B) \<union> (B - A)"
-
-value "{1::int,2,3} \<triangle> {3,4,5}"
-
-lemma symm_diff_eq: "c \<in> A \<triangle> B \<longleftrightarrow> (c \<in> A \<and> c \<notin> B) \<or> (c \<in> B \<and> c \<notin> A)" (is "?lhs \<longleftrightarrow> ?rhs")
-  by (metis Diff_iff Un_iff symm_diff_def)
-
-lemma "jump c1 c2 \<longleftrightarrow> (\<exists>x y. c1 \<triangle> c2 = {(x,y), (x,y+1), (x,y+2)} \<or> c1 \<triangle> c2 = {(x,y), (x+1,y), (x+2,y)})" (is "?lhs \<longleftrightarrow> ?rhs")
-  sorry
-(* proof assume "?lhs"
-  then show "?rhs" proof (cases rule: jump.cases)
-    case (left x y) (*from left have "c1 - c2 \<supseteq> {(x, y), (x-1, y)}" sorry by auto *)
-    then have "c1 \<triangle> c2 = {(x, y), (x-1, y), (x-2, y)}" apply (rule set_eqI)
-    then show ?thesis sorry  next
-    case (right x y) then show ?thesis sorry
-  next case (up x y) then show ?thesis sorry
-  next case (down x y) then show ?thesis sorry
-  qed qed *)
-
 fun below_the_line :: "position \<Rightarrow> bool" where
 "below_the_line (_, y) = (y \<ge> 5)"
 
