@@ -1066,20 +1066,20 @@ lemma jump_keeps_cofinite_coins:
     shows "\<exists>D. finite D \<and> A \<inter> B = A - D"
 using \<open>jump A B\<close> infinite proof (induction rule: jump.induct)
   case (left x y A B)
-  then show ?case by (metis Int_insert_right_if0 Un_Diff_Int Un_Int_eq(1) Un_insert_right
-        finite.emptyI finite.insertI sup_bot.right_neutral)
+  then have "A \<inter> B = A - {(x, y), (x-1, y)}" by force
+  then show ?case by (meson finite.simps)
 next
   case (right x y A B)
-  then show ?case by (metis Int_insert_right_if0 Un_Diff_Int Un_Int_eq(1) Un_insert_right
-        finite.emptyI finite.insertI sup_bot.right_neutral)
+  then have "A \<inter> B = A - {(x, y), (x+1, y)}" by force
+  then show ?case by (meson finite.simps)
 next
   case (up x y A B)
-  then show ?case by (metis Int_insert_right_if0 Un_Diff_Int Un_Int_eq(1) Un_insert_right
-        finite.emptyI finite.insertI sup_bot.right_neutral)
+  then have "A \<inter> B = A - {(x, y), (x, y-1)}" by force
+  then show ?case by (meson finite.simps)
 next
   case (down x y A B)
-  then show ?case by (metis Int_insert_right_if0 Un_Diff_Int Un_Int_eq(1) Un_insert_right
-        finite.emptyI finite.insertI sup_bot.right_neutral)
+  then have "A \<inter> B = A - {(x, y), (x, y+1)}" by force
+  then show ?case by (meson finite.simps)
 qed
 
 (*  
@@ -1094,7 +1094,7 @@ proof (induction rule: star.induct)
   case (refl X)
   then show ?case by auto
 next
-  case (step X Y Z)  
+  case (step X Y Z)
   then obtain D1 where D1: "finite D1 \<and> X \<inter> Y = X - D1"
     using jump_keeps_cofinite_coins by presburger
   then have "infinite Y"
