@@ -6,7 +6,6 @@ theory LeapingFrog
   imports Main HOL.Real HOL.NthRoot HOL.Boolean_Algebras HOL.Series "HOL-IMP.Star"
 begin
 
-
 section \<open>The number w\<close>
 
 (*
@@ -20,7 +19,7 @@ definition w :: "real" where
     -   w^2 = 1 - w
     -   w^(n+1) + w^(n+2) = w^n
 
-  These are the crucial properties of w that make the argument work.
+  These are the crucial properties of w that make the whole argument work.
 *)
 lemma w_squared: "w^2 = 1 - w"
 proof -
@@ -165,7 +164,13 @@ fun point_pow :: "coins \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> real" 
 fun power_sum :: "coins \<Rightarrow> real" where
 "power_sum c = suminf (\<lambda>x. suminf (point_pow c x))"
 
-section \<open>Power sums of w\<close>
+section \<open>Properties of power sums of w\<close>
+text \<open>This section contains proofs about the `power_sum` function:
+  - The inner series and the outer series that define `power_sum` converge,
+  - the value of `power_sum` for finite coin configurations can be computed via `sum`,
+  - considering a (proper) subset of coins (strictly) decreases the power sum\<close>
+
+subsection \<open>Preliminary lemmas\<close>
 
 (* 
   Kind of specific lemma about transforming geometric series, but an argument of this form
@@ -192,7 +197,7 @@ proof -
 qed
 
 (*
-  The lemma holds for b=w, because w in (0, 1).
+  The geometric sum transformation lemma holds for b=w, because w is in (0, 1).
 *)
 corollary geometric_w_sums_transformation: "(\<lambda>y. c*w^(a+y)) sums (c*w^(a)/(1-w))"
   using w_range geometric_sums_transformation[where b=w] by simp
@@ -211,7 +216,46 @@ proof -
   then show ?thesis using summable_comparison_test f_summable by blast
 qed
 
-(* Lemmas about summability of sums that define power_sum *)
+(*
+  Changing one term of a summable series by d changes the sum by d.
+*)
+lemma series_one_term_different:
+  assumes f_g_diff: "(g :: nat \<Rightarrow> real) (k::nat) = f k + d"
+      and f_g_eq: "\<And>i. i \<noteq> k \<Longrightarrow> f i = g i"
+      and "summable f"
+    shows "suminf g = suminf f + d"
+proof -
+  have f_initsum:  "(\<lambda>i. f (i + (k+1))) sums s \<longleftrightarrow> f sums (s + (\<Sum>i<k+1. f i))" 
+    for s using sums_iff_shift by blast
+  have g_initsum:  "(\<lambda>i. g (i + (k+1))) sums s \<longleftrightarrow> g sums (s + (\<Sum>i<k+1. g i))" 
+    for s using sums_iff_shift by blast
+  have init_diff: "(\<Sum>i<k+1. g i) = (\<Sum>i<k+1. f i) + d"
+  proof -
+    have "(\<Sum>i<k+1. g i) = (\<Sum>i<k. g i) + g k" by simp
+    moreover have "(\<Sum>i<k+1. f i) = (\<Sum>i<k. f i) + f k" by simp
+    moreover have "(\<Sum>i<k. g i) = (\<Sum>i<k. f i)" using f_g_eq by simp
+    ultimately show ?thesis using f_g_diff by simp
+  qed
+  have tails_eq: "(\<lambda>i. f (i + (k+1))) = (\<lambda>i. g (i + (k+1)))" using f_g_eq by simp
+  have "f sums s \<Longrightarrow> g sums (s + d)" for s
+  proof -
+    assume "f sums s"
+    then have "(\<lambda>i. f (i + (k+1))) sums (s - (\<Sum>i<k+1. f i))"
+      using f_initsum by auto
+    then have "(\<lambda>i. f (i + (k+1))) sums (s - (\<Sum>i<k+1. f i))"
+      using tails_eq by simp
+    then have "(\<lambda>i. f (i + (k+1))) sums (s - ((\<Sum>i<k+1. g i) - d))"
+      using init_diff by simp
+    then show "g sums (s + d)" using g_initsum tails_eq by simp
+  qed
+  then show ?thesis using \<open>summable f\<close> sums_iff by blast
+qed
+
+subsection \<open>Summability of inner/outer series defining `power_sum`\<close>
+
+(*
+  Value of inner series for x = 0, given that all coins are present.
+*)
 lemma point_pow_all_coins_row_sum_x_eq_0:
   "x = 0 \<Longrightarrow> (point_pow all_coins x) sums (1/(1-w))"
 proof -
@@ -222,6 +266,9 @@ proof -
   ultimately show ?thesis using sums_cong by blast
 qed
 
+(*
+  Value of inner series for x > 0, given that all coins are present.
+*)
 lemma point_pow_all_coins_row_sum_x_ge_0:
   "x > 0 \<Longrightarrow> (point_pow all_coins x) sums (2*w^x/(1-w))"
 proof -
@@ -233,6 +280,9 @@ proof -
   then show ?thesis using f by presburger
 qed
 
+(*
+  The inner series is converges if all coins are present.
+*)
 lemma point_pow_all_coins_row_summable: "summable (point_pow all_coins x)"
 proof (cases "x = 0")
   case True 
@@ -242,6 +292,9 @@ next
   then show ?thesis using point_pow_all_coins_row_sum_x_ge_0 using summable_def by blast
 qed
 
+(*
+  The inner series converges for any coin configuration.
+*)
 lemma point_pow_summable: "summable (point_pow coins x)" 
 proof -
   let ?f = "point_pow all_coins x"
@@ -251,6 +304,9 @@ proof -
   ultimately show ?thesis using summable_nonneg_comparison_test w_range by fastforce
 qed
 
+(*
+  The outer series converges for any coin configuration.
+*)
 lemma power_sum_summable: "summable (\<lambda>x. suminf (point_pow coins x))"
 proof -
   let ?f = "\<lambda>x. suminf (point_pow all_coins x)"
@@ -290,40 +346,11 @@ proof -
 qed
 
 
+subsection \<open>Computing `power_sum` for finite coin configurations\<close>
 
-
-lemma series_one_term_different:
-  assumes f_g_diff: "(g :: nat \<Rightarrow> real) (k::nat) = f k + d"
-      and f_g_eq: "\<And>i. i \<noteq> k \<Longrightarrow> f i = g i"
-      and "summable f"
-    shows "suminf g = suminf f + d"
-proof -
-  have f_initsum:  "(\<lambda>i. f (i + (k+1))) sums s \<longleftrightarrow> f sums (s + (\<Sum>i<k+1. f i))" 
-    for s using sums_iff_shift by blast
-  have g_initsum:  "(\<lambda>i. g (i + (k+1))) sums s \<longleftrightarrow> g sums (s + (\<Sum>i<k+1. g i))" 
-    for s using sums_iff_shift by blast
-  have init_diff: "(\<Sum>i<k+1. g i) = (\<Sum>i<k+1. f i) + d"
-  proof -
-    have "(\<Sum>i<k+1. g i) = (\<Sum>i<k. g i) + g k" by simp
-    moreover have "(\<Sum>i<k+1. f i) = (\<Sum>i<k. f i) + f k" by simp
-    moreover have "(\<Sum>i<k. g i) = (\<Sum>i<k. f i)" using f_g_eq by simp
-    ultimately show ?thesis using f_g_diff by simp
-  qed
-  have tails_eq: "(\<lambda>i. f (i + (k+1))) = (\<lambda>i. g (i + (k+1)))" using f_g_eq by simp
-  have "f sums s \<Longrightarrow> g sums (s + d)" for s
-  proof -
-    assume "f sums s"
-    then have "(\<lambda>i. f (i + (k+1))) sums (s - (\<Sum>i<k+1. f i))"
-      using f_initsum by auto
-    then have "(\<lambda>i. f (i + (k+1))) sums (s - (\<Sum>i<k+1. f i))"
-      using tails_eq by simp
-    then have "(\<lambda>i. f (i + (k+1))) sums (s - ((\<Sum>i<k+1. g i) - d))"
-      using init_diff by simp
-    then show "g sums (s + d)" using g_initsum tails_eq by simp
-  qed
-  then show ?thesis using \<open>summable f\<close> sums_iff by blast
-qed
-
+(*
+  Adding a single coin (x, y) to a coin configuration increases its `power_sum` by w^(|x| + y)
+*)
 lemma power_sum_union_singleton:
   "(x,y) \<notin> F \<Longrightarrow> power_sum (F \<union> {(x,y)}) = power_sum F + w^(nat (abs x) + y)"
 proof -
@@ -343,8 +370,8 @@ proof -
       |
     ------
     -xx---
-    -xx0--
-    --xxx
+    -xxX--
+    --xxx-
     
     F =     {(-1,1), (0,1), (-1,2), (0,2),        (0,3), (1,3), (2,3)}
     ?Fnew = {(-1,1), (0,1), (-1,2), (0,2), (1,2), (0,3), (1,3), (2,3)}
@@ -387,10 +414,16 @@ proof -
   then show ?thesis by simp
 qed
 
+(*
+  Removing a single coin (x, y) from a coin configuration decreases its `power_sum` by w^(|x| + y)
+*)
 corollary power_sum_minus_singleton:
   "(x,y) \<in> F \<Longrightarrow> power_sum (F - {(x,y)}) = power_sum F - w^(nat (abs x) + y)"
   using mk_disjoint_insert power_sum_union_singleton by fastforce
 
+(*
+  For a finite coin configuration, we can compute the `power_sum` using the `sum` function.
+*)
 lemma finite_power_sum:
   assumes finite: "finite coins"
   shows "power_sum coins = sum (\<lambda>(x,y). w ^ (nat (abs x) + y)) coins"
@@ -409,9 +442,11 @@ next
   from 1 2 insert show ?case by simp
 qed
 
-corollary goal_field_value_1: "power_sum {(0,0)} = 1"
-  using finite_power_sum by simp
+subsection \<open>Monotonicity of `power_sum` in the coin configuration\<close>
 
+(*
+  Lemmas showing that `power_sum` weakly increases with a  \<subseteq>-increasing coin configuration.
+*)
 lemma point_pow_subset_leq: "A \<subseteq> B \<Longrightarrow> point_pow A x y \<le> point_pow B x y"
   using w_range by auto
 
@@ -427,6 +462,9 @@ proof -
   then show ?thesis by (simp add: power_sum_summable summable_sums)
 qed
 
+(*
+  Lemmas showing that `power_sum` strictly increases with a \<subset>-increasing coin configuration.
+*)
 lemma point_pow_subset_less: "A \<subseteq> B \<and> (x,y) \<in> B - A 
     \<Longrightarrow> point_pow A (nat (abs x)) y < point_pow B (nat (abs x)) y"
   by (smt (verit, best) DiffD2 Diff_partition Un_iff nat_eq_iff point_pow.elims w_range
@@ -462,6 +500,28 @@ proof -
   then show ?thesis by simp
 qed
 
+
+section \<open>Power sums for game configurations\<close>
+
+text \<open>This section shows some facts about `power_sum`s of coin configurations relevant to the game:
+  - the goal field has a `power_sum` value of 1,
+  - the maximal initial configuration has a `power_sum` value of 1,
+  - initial configurations have a `power_sum` value of at most 1.\<close>
+
+subsection \<open>Power sum of goal field\<close>
+
+(*
+  The set containing only the goal field {(0,0)} has a `power_sum` value of 1
+*)
+corollary goal_field_value_1: "power_sum {(0,0)} = 1"
+  using finite_power_sum by simp
+
+
+subsection \<open>Power sums of initial coin configurations\<close>
+
+(*
+  The `power_sum` of the maximal initial coin configuration is 1.
+*)
 theorem max_initial_coins_eq_one: "power_sum max_initial_coins = 1"
 proof -
   have x_eq_0: "x = 0 \<Longrightarrow> suminf (point_pow max_initial_coins x) = w^3" for x
@@ -569,6 +629,9 @@ proof -
   qed
 qed
 
+(*
+  The maximal initial coin configuration is an infinite set.
+*)
 lemma max_initial_coins_infinite: "infinite max_initial_coins"
 proof (rule ccontr)
   let ?proj = "((\<lambda>(x, _). x) ` max_initial_coins)"
@@ -585,7 +648,10 @@ proof (rule ccontr)
   then show "False" using max_k by auto
 qed
 
-theorem initial_finite_coins_less_one:
+(*
+  Any finite initial coin configuration has a `power_sum` less than 1.
+*)
+lemma initial_finite_coins_less_one:
   assumes initial: "initial_coins coins"
       and finite:"finite coins"
 shows "power_sum coins < 1"
@@ -597,13 +663,17 @@ proof -
   then show ?thesis using max_initial_coins_eq_one by simp
 qed
 
-(* Not sure if this lemma is needed, but it is easy enough to prove. TODO *)
-theorem initial_coins_leq_one:
+(* Any initial coin configuration has a `power_sum` of at most 1. *)
+lemma initial_coins_leq_one:
   assumes "initial_coins coins"
   shows "power_sum coins \<le> 1"
   by (metis assms initial_coins_subset max_initial_coins_eq_one powersum_subset_leq)
 
+section \<open>Power sums and jumps\<close>
 
+(*
+  A `jump` transition from one coin configuration to another weakly decreases the `power_sum`.
+*)
 theorem jump_decreases_power_sum: "jump A B \<Longrightarrow> power_sum B \<le> power_sum A"
 (*
   We prove this for the four directions we can jump to:
@@ -710,6 +780,9 @@ next
   then show ?case using right.hyps(4) by (smt (verit, best) power_sum_B)
 next
   case (up x y A B)
+  (*
+    The "up" part is simpler (don't need to deal with the `abs` change of direction at x=0).
+  *)
   let ?x = "nat (abs x)"
 
   let ?full_diff = "w^(?x + (y-2)) - w^(?x + (y-1)) - w^(?x + y)"
@@ -729,14 +802,19 @@ next
     then have "?diff = 0" using w_recurrence[where n="y-2"] by simp
     then show ?thesis by simp
   next
-    case False
-    then show ?thesis using \<open>(x, y - 1) \<in> A\<close> \<open>(x, y - 2) \<notin> A\<close> by auto
+    case False 
+    (* This case is impossible: you cannot jump up when too close to the upper border. *)
+    then have "False" using \<open>(x, y - 1) \<in> A\<close> \<open>(x, y - 2) \<notin> A\<close> by auto
+    then show ?thesis ..
   qed
   moreover have "w^?x > 0" by (simp add: w_range)
   ultimately have "?full_diff \<le> 0" using full_diff_diff zero_less_mult_iff by smt
   then show ?case using up.hyps(4) by (smt (verit, best) power_sum_B)
 next
   case (down x y A B)
+  (*
+    The "down" part is even more simple (don't need to deal with the y=0 upper border).
+  *)
   let ?x = "nat (abs x)"
 
   let ?full_diff = "w^(?x + (y+2)) - w^(?x + (y+1)) - w^(?x + y)"
@@ -755,11 +833,27 @@ next
   then show ?case using down.hyps(4) by (smt (verit, best) power_sum_B)
 qed
 
-theorem jumps_decrease_power_sum:
+(*
+  A `jumps` transition also weakly decreases the `power_sum`.
+*)
+corollary jumps_decrease_power_sum:
   "jumps A B \<Longrightarrow> power_sum B \<le> power_sum A"
 unfolding jumps_def by (induction rule: star.induct) (fastforce dest: jump_decreases_power_sum)+
 
+section \<open>Game unwinnable (1) (Goal field/finite initial configuration)\<close>
 
+text \<open>This section gives the first (and weakest) version of the final theorem: We show that
+  from a finite initial configuration, the goal field (0, 0) cannot be reached.
+  
+  The theorem is strenghted in the following sections
+  - to allow any (possibly non-finite) initial configuration and
+  - to show that not only the goal field (0, 0), but also no other field (x, 0) on the row y = 0
+      can be reached.\<close>
+
+(*
+  The game cannot be won from a finite initial configuration, if the objective is to reach the
+    goal field (0, 0).
+*)
 theorem finite_initial_coins_cannot_reach_goal_field:
   assumes finite: "finite A"
       and initial: "initial_coins A"
@@ -777,23 +871,50 @@ proof (rule ccontr)
   ultimately show "False" by simp
 qed
 
+section \<open>Game unwinnable (2) (Goal row/finite initial configuration)\<close>
+
+text \<open>This section strengthens the first version of the unwinnability theorem: we show that the
+  goal field (0, 0) is not special, and that in fact no cell (x, 0) on the goal row y = 0 can be
+  reached.
+
+  We introduce a shift operation and show that any gameplay reaching some field (x, 0) can be
+  shifted in order to reach (0, 0).\<close>
+
+subsection \<open>Shift operation\<close>
+
+(*
+  Shifts a coin configuration in the x direction by some amount.
+*)
 fun shift :: "coins \<Rightarrow> int \<Rightarrow> coins" where
 "shift coins d = {(x+d, y) |x y. (x, y) \<in> coins}"
 
-lemma shift': "(x, y) \<in> A \<longleftrightarrow> (x+d, y) \<in> shift A d" by simp
-
+(*
+  Auxilliary lemma about sets of tuples, allows to shorten the following proofs.
+*)
 lemma tuple_set_eq_iff: "(\<forall>x y. ((x, y) \<in> A) = ((x, y) \<in> B)) \<Longrightarrow> A = B"
   by fastforce
 
-lemma shift_self_inverse: "shift (shift A d) (-d) = A" (is "?lhs = ?rhs")
+(*
+  Shifting back and forth by the same amount gives the original set.
+*)
+lemma shift_inverse: "shift (shift A d) (-d) = A" (is "?lhs = ?rhs")
   by (rule tuple_set_eq_iff) force
 
+(*
+  `shift` commutes with set differences.
+*)
 lemma shift_minus: "shift (A - B) d = shift A d - shift B d" (is "?lhs = ?rhs")
   by (rule tuple_set_eq_iff) force
 
+(*
+  `shift` commutes with set unions.
+*)
 lemma shift_union: "shift (A \<union> B) d = shift A d \<union> shift B d" (is "?lhs = ?rhs")
   by (rule tuple_set_eq_iff) force
 
+(*
+  `shift` preserves finiteness.
+*)
 lemma shift_finite: "finite A \<Longrightarrow> finite (shift A d)"
 proof (induction rule: finite_induct)
   case (insert t F)
@@ -806,6 +927,9 @@ proof (induction rule: finite_induct)
 qed simp
 
 (* TODO generalize the argument used here four times *)
+(*
+  If `jump` transitions A to B, then it transitions the shifted versions A', B' as well.
+*)
 lemma jump_shift_inv:
   assumes "jump A B"
       and A': "A' = shift A d"
@@ -877,6 +1001,9 @@ next
   ultimately show ?case by (smt (verit, ccfv_threshold) jump.down)
 qed
 
+(*
+  Even stronger, `jump` transitions A to B iff it transitions A' to B'.
+*)
 lemma jump_shift_inv_eq:
   assumes A': "A' = shift A d"
       and B': "B' = shift B d"
@@ -884,17 +1011,25 @@ lemma jump_shift_inv_eq:
 proof
   show "jump A B \<Longrightarrow> jump A' B'" using A' B' jump_shift_inv by blast
   assume "jump A' B'"
-  moreover have "A = shift A' (-d)" using A' shift_self_inverse by presburger
-  moreover have "B = shift B' (-d)" using B' shift_self_inverse by presburger
+  moreover have "A = shift A' (-d)" using A' shift_inverse by presburger
+  moreover have "B = shift B' (-d)" using B' shift_inverse by presburger
   ultimately show "jump A B" using jump_shift_inv by blast
 qed
 
-
-theorem jumps_shift_inv:
+(*
+  If `jumps` transitions A to B, it also transitions `(shift A d)` to `(shift B d)`.
+*)
+lemma jumps_shift_inv:
   "jumps A B \<Longrightarrow> jumps (shift A d) (shift B d)"
 unfolding jumps_def by (induction rule: star.induct) (meson jump_shift_inv star.simps)+
 
-theorem finite_initial_coins_cannot_reach_goal_line:
+subsection \<open>Game unwinnable (2) theorem\<close>
+
+(*
+  The game cannot be won from a finite initial configuration, if the objective is to reach
+    any field (x, 0) on the goal row y = 0.
+*)
+theorem finite_initial_coins_cannot_reach_goal_row:
   assumes finite: "finite A"
       and initial: "initial_coins A"
       and reaches: "jumps A B"
@@ -911,7 +1046,20 @@ proof (rule ccontr)
   ultimately show "False" using finite_initial_coins_cannot_reach_goal_field by blast
 qed
 
+section \<open>Game unwinnable (3) (Goal field/any initial configuration)\<close>
+
+text \<open>This section strengthens another aspect of the first version of the unwinnability theorem: 
+  we show that the the finiteness assumption on the initial configuration is not needed.
+
+  To this end, we show that a `jump` only removes a finite number of coins from the initial
+  configuration. This implies that if A is an infinite initial configuration that reaches some B
+  that contains the goal field, then there is still some element from A left in B. From this
+  we get that the `power_sum` of such a B is strictly greater than 1.\<close>
+
 (* TODO maybe make a bit nicer? *)
+(*
+  If `jump` transitions A to B, all but a finite number of elements from A are also in B.
+*)
 lemma jump_keeps_cofinite_coins:
   assumes "jump A B"
       and infinite: "infinite A"
@@ -956,6 +1104,10 @@ next
 qed
 (* end of copied in part *)
 
+(* TODO try again with the usual star *)
+(*  
+  If `jumps` transitions A to B, all but a finite number of elements from A are also in B as well.
+*)
 lemma jumps_keeps_cofinite_coins:
   assumes reaches: "jumps A B"
       and infinite: "infinite A"
@@ -983,6 +1135,10 @@ proof -
   then show ?thesis using infinite jumps_def reaches star_eq_star' by fastforce
 qed
 
+(*
+  The game cannot be won from any (possibly infinite) initial configuration, if the objective is
+    to reach the goal field (0, 0).
+*)
 theorem initial_coins_cannot_reach_goal_field:
   assumes initial: "initial_coins A"
       and reaches: "jumps A B"
@@ -1022,7 +1178,16 @@ next
   qed
 qed
 
-theorem initial_coins_cannot_reach_goal_line:
+section \<open>Game unwinnable (4) (Goal row/any initial configuration)\<close>
+
+text \<open>Finally, we put the previous results together to obtain the strongest version of the
+  unwinnability theorem: The goal row cannot be reached from any initial configuration.\<close>
+
+(*
+  The game cannot be won from any (possibly infinite) initial configuration, if the objective is
+    to reach any field (x, 0) on the goal row y = 0.
+*)
+theorem initial_coins_cannot_reach_goal_row:
   assumes initial: "initial_coins A"
       and reaches: "jumps A B"
     shows "\<forall>x. (x, 0) \<notin> B"
