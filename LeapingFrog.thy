@@ -19,7 +19,7 @@ definition w :: "real" where
     -   w^2 = 1 - w
     -   w^(n+1) + w^(n+2) = w^n
 
-  These are the crucial properties of w that make the whole argument work.
+  These relations will be crucial for the whole argument to work.
 *)
 lemma w_squared: "w^2 = 1 - w"
 proof -
@@ -181,6 +181,7 @@ proof -
   let ?s = "1/(1-b)"
   assume "norm b < 1"
   then have "(\<lambda>y. b^y) sums ?s" using geometric_sums by blast
+  (* Convert the series to a limit so we can apply multiplication lemmas about limits *)
   then have sum_unfold: "(\<lambda>n. \<Sum>i<n. (\<lambda>y. b^y) i) \<longlonglongrightarrow> ?s" by (simp add: sums_def)
   have "(\<lambda>_. c*w^a) \<longlonglongrightarrow> c*w^a" by simp
   from this sum_unfold have 
@@ -225,10 +226,12 @@ lemma series_one_term_different:
       and "summable f"
     shows "suminf g = suminf f + d"
 proof -
+  (* Decompose series into initial part until the different element, and equal tail part *)
   have f_initsum:  "(\<lambda>i. f (i + (k+1))) sums s \<longleftrightarrow> f sums (s + (\<Sum>i<k+1. f i))" 
     for s using sums_iff_shift by blast
   have g_initsum:  "(\<lambda>i. g (i + (k+1))) sums s \<longleftrightarrow> g sums (s + (\<Sum>i<k+1. g i))" 
     for s using sums_iff_shift by blast
+  (* The the initial parts differ by d... *)
   have init_diff: "(\<Sum>i<k+1. g i) = (\<Sum>i<k+1. f i) + d"
   proof -
     have "(\<Sum>i<k+1. g i) = (\<Sum>i<k. g i) + g k" by simp
@@ -236,6 +239,7 @@ proof -
     moreover have "(\<Sum>i<k. g i) = (\<Sum>i<k. f i)" using f_g_eq by simp
     ultimately show ?thesis using f_g_diff by simp
   qed
+  (* ...and the tails are equal *)
   have tails_eq: "(\<lambda>i. f (i + (k+1))) = (\<lambda>i. g (i + (k+1)))" using f_g_eq by simp
   have "f sums s \<Longrightarrow> g sums (s + d)" for s
   proof -
@@ -259,9 +263,9 @@ subsection \<open>Summability of inner/outer series defining `power_sum`\<close>
 lemma point_pow_all_coins_row_sum_x_eq_0:
   "x = 0 \<Longrightarrow> (point_pow all_coins x) sums (1/(1-w))"
 proof -
-  let ?f = "point_pow all_coins x"
   assume "x = 0"
-  then have "?f y = w^y" for y by (simp add: all_coins_def)
+  (* Since x = 0, point_pow only counts the x = 0 column *)
+  then have "point_pow all_coins x y = w^y" for y by (simp add: all_coins_def)
   moreover have "(\<lambda>y. w^y) sums (1/(1-w))" using geometric_sums w_range by force
   ultimately show ?thesis using sums_cong by blast
 qed
@@ -272,16 +276,16 @@ qed
 lemma point_pow_all_coins_row_sum_x_ge_0:
   "x > 0 \<Longrightarrow> (point_pow all_coins x) sums (2*w^x/(1-w))"
 proof -
-  let ?f = "point_pow all_coins x"
   assume "x > 0"
-  then have f: "?f y = 2 * w^(x+y)" for y by (simp add: all_coins_def)
-  then have "(\<lambda>y. 2 * w^(x+y)) sums (2*w^x/(1-w))" 
+  (* Since x > 0, point_pow only counts the x and the -x columns (hence the factor of 2) *)
+  then have "point_pow all_coins x y = 2 * w^(x+y)" for y by (simp add: all_coins_def)
+  moreover have "(\<lambda>y. 2 * w^(x+y)) sums (2*w^x/(1-w))" 
     using geometric_w_sums_transformation by fastforce
-  then show ?thesis using f by presburger
+  ultimately show ?thesis by presburger
 qed
 
 (*
-  The inner series is converges if all coins are present.
+  The inner series converges if all coins are present.
 *)
 lemma point_pow_all_coins_row_summable: "summable (point_pow all_coins x)"
 proof (cases "x = 0")
@@ -297,8 +301,8 @@ qed
 *)
 lemma point_pow_summable: "summable (point_pow coins x)" 
 proof -
-  let ?f = "point_pow all_coins x"
-  have "summable ?f" by (rule point_pow_all_coins_row_summable)
+  have "summable (point_pow all_coins x)" by (rule point_pow_all_coins_row_summable)
+  (* Use that point_pow for all coins dominates point_pow for a subset of coins *)
   moreover have "point_pow coins x y \<le> point_pow all_coins x y" for y
     using all_coins_def w_range by auto
   ultimately show ?thesis using summable_nonneg_comparison_test w_range by fastforce
@@ -310,16 +314,17 @@ qed
 lemma power_sum_summable: "summable (\<lambda>x. suminf (point_pow coins x))"
 proof -
   let ?f = "\<lambda>x. suminf (point_pow all_coins x)"
+  (* Both the x = 0 and x > 0 case can be upper-bounded by 2*1/(1-w).
+     For convenience, we upper-bound the factor 2*1/(1-w) by 8 *)
   have "1/(1-w) < 4" using w_bound w_range by (simp add: mult_imp_div_pos_less)
   then have "1/(1-w) \<le> 4" by simp
   have "?f x \<le> 8 * w^x" for x proof (cases "x = 0")
     case xeq0: True
-    then have "?f x = 1/(1-w)"
-      using point_pow_all_coins_row_sum_x_eq_0 sums_unique by force
+    then have "?f x = 1/(1-w)" using point_pow_all_coins_row_sum_x_eq_0 sums_unique by force
     moreover have "1/(1-w) \<le> 2/(1-w) * w^0"
       by (metis diff_ge_0_iff_ge divide_right_mono less_le mult.commute mult_cancel_right2 
           one_le_numeral power_0 w_range)
-    ultimately show ?thesis using xeq0 \<open>1/(1-w) < 4\<close> by fastforce 
+    ultimately show ?thesis using xeq0 \<open>1/(1-w) < 4\<close> by fastforce
   next
     case False
     then have "?f x = 2*w^x/(1-w)"
@@ -328,19 +333,23 @@ proof -
       by (meson mult_less_cancel_right_disj zero_less_power)
     ultimately show ?thesis by force
   qed
+  (* This upper bound is now easily shown to be summable. *)
   moreover have "(\<lambda>x. 8*w^x) sums (8/(1-w))"
     using geometric_w_sums_transformation[where a=0] by simp
   then have "summable (\<lambda>x. 8*w^x)" using sums_summable by blast
   moreover have "0 \<le> suminf (point_pow all_coins x)" for x
     using point_pow_summable suminf_nonneg w_range by force
+  (* The original series (with all coins) is dominated by the upper bound, i.e. also summable. *)
   ultimately have "summable ?f" using summable_nonneg_comparison_test by presburger
 
+  (* Furthermore, the series with all coins dominates the one with just a subset of coins, ...*)
   have "point_pow coins x y \<le> point_pow all_coins x y" for x y using all_coins_def w_range by auto
   then have "suminf (point_pow coins x) \<le> suminf (point_pow all_coins x)" for x 
     by (meson point_pow_summable suminf_le)
   moreover have "0 \<le> suminf (point_pow coins x)" for x
     using point_pow_summable suminf_nonneg w_range by force
 
+  (* ...therefore this is summable as well. *)
   ultimately show ?thesis
     using \<open>summable ?f\<close> summable_nonneg_comparison_test by presburger
 qed
@@ -356,7 +365,23 @@ lemma power_sum_union_singleton:
 proof -
   assume notinF: "(x,y) \<notin> F"
   let ?Fnew = "insert (x,y) F"
+  (* ?x is the `nat` absolute value of x that is used as index in the series *)
   let ?x = "nat (abs x)"
+
+  (* 
+    We have some fixed coin (x, y) and show that the double series that defines `power_sum`
+      differs by w^(?x + y).
+  
+    Proceed in four steps:
+    - for all x' \<noteq> ?x, the value of the inner series remains equal
+    - for all y' \<noteq> y and all x', the value of point_pow remains equal
+    - for ?x and y, the value of point_pow differs by w^(?x + y)
+    - for ?x, the value of the inner series differs by w^(?x + y)
+
+    Then, the outer series only differs by the single term for ?x, and `series_one_term_different`
+      can be applied.
+  *)
+
   have otherx: "x' \<noteq> ?x \<Longrightarrow> suminf (point_pow ?Fnew x') = suminf (point_pow F x')" for x'
   proof -
     assume xneq: "x' \<noteq> ?x"
@@ -365,21 +390,6 @@ proof -
     from poseq negeq show ?thesis by (smt (verit, ccfv_threshold) Pair_inject case_prod_conv
           insert_iff point_pow.elims suminf_cong notinF)
   qed
-
-  (*
-      |
-    ------
-    -xx---
-    -xxX--
-    --xxx-
-    
-    F =     {(-1,1), (0,1), (-1,2), (0,2),        (0,3), (1,3), (2,3)}
-    ?Fnew = {(-1,1), (0,1), (-1,2), (0,2), (1,2), (0,3), (1,3), (2,3)}
-    
-    Sum_y point_pow F x' y = Sum_y point_pow ?Fnew x' y for all x' in {0, 2, 3, ...}
-    For x = 1:        point_pow F x y = point_pow ?Fnew x y for all y in {0, 1, 3, 4, ...}
-    For x = 1, y = 2: point_pow ?Fnew x y = point_pow F x y + w^(x+y)
-  *)
 
   have othery: "y' \<noteq> y \<Longrightarrow> point_pow ?Fnew ?x y' = point_pow F ?x y'" for y'
   proof -
@@ -407,7 +417,6 @@ proof -
 
   have samex: "suminf (point_pow ?Fnew ?x) = suminf (point_pow F ?x) + w^(?x+y)"
     using series_one_term_different samexy othery point_pow_summable by presburger
-
 
   have "suminf (\<lambda>x. suminf (point_pow ?Fnew x)) = suminf (\<lambda>x. suminf (point_pow F x)) + w^(?x+y)"
     using series_one_term_different samex otherx power_sum_summable by presburger
@@ -477,6 +486,13 @@ proof -
   then obtain x y where xy: "(x,y) \<in> B - A" by auto
   let ?x = "nat (abs x)"
 
+  (*
+    Proof strategy: Show that the differences of the series is > 0. We start from the innermost
+      terms in the series and work our way outward. Along the way we need the `suminf_diff` lemma
+      and some summability statements.
+  *)
+
+  (* Show that the series of differences of inner series terms for ?x sums to something > 0  *)
   have "point_pow B ?x y - point_pow A ?x y > 0" using xy point_pow_subset_less
     by (simp add: order_less_imp_le subset)
   moreover have "summable (\<lambda>y. point_pow B ?x y - point_pow A ?x y)"
@@ -484,16 +500,22 @@ proof -
   ultimately have "suminf (\<lambda>y. point_pow B ?x y - point_pow A ?x y) > 0"
     by (smt (verit) order_less_imp_le point_pow_subset_leq subset suminf_pos_iff)
 
+  (* Pull this apart to show that the difference of the inner series for ?x is > 0 *)
   moreover have "suminf (\<lambda>y. point_pow B ?x y - point_pow A ?x y)
     = suminf (point_pow B ?x) - suminf (point_pow A ?x)" 
     using suminf_diff[of "point_pow B ?x" "point_pow A ?x"] point_pow_summable by simp
   ultimately have "suminf (point_pow B ?x) - suminf (point_pow A ?x) > 0" by simp
+
+  (* Using that the inner series difference for other x is \<ge> 0 ...*) 
   moreover have "suminf (point_pow B x) - suminf (point_pow A x) \<ge> 0" for x
     by (simp add: order_less_imp_le powersum_inner_subset_leq subset)
   moreover have "summable (\<lambda>x. suminf (point_pow B x) - suminf (point_pow A x))"
     by (simp add: power_sum_summable summable_diff)
+  (* ...show that the series of differences of outer series terms is > 0 *)
   ultimately have "suminf (\<lambda>x. suminf (point_pow B x) - suminf (point_pow A x)) > 0" 
     using suminf_pos_iff[where f="(\<lambda>x. suminf (point_pow B x) - suminf (point_pow A x))"] by blast
+
+  (* Pull this apart to get that the difference of the outer series is > 0 *)
   then have "suminf (\<lambda>x. suminf (point_pow B x)) - suminf (\<lambda>x. suminf (point_pow A x)) > 0" 
     using suminf_diff[of "(\<lambda>x. suminf (point_pow B x))" "(\<lambda>x. suminf (point_pow A x))"]
           power_sum_summable by presburger
@@ -521,9 +543,11 @@ subsection \<open>Power sums of initial coin configurations\<close>
 
 (*
   The `power_sum` of the maximal initial coin configuration is 1.
+  (This is the first crucial property of the number w.)
 *)
 theorem max_initial_coins_eq_one: "power_sum max_initial_coins = 1"
 proof -
+  (* Compute the inner series for the x = 0 column *)
   have x_eq_0: "x = 0 \<Longrightarrow> suminf (point_pow max_initial_coins x) = w^3" for x
   proof -
     assume "x = 0"
@@ -531,6 +555,7 @@ proof -
       by (simp add: \<open>x = 0\<close> max_initial_coins_def)
     let ?f = "(\<lambda>y. (if y \<ge> 5 then w^y else 0))"
 
+    (* Drop the initial (zero) segment of the series, by shifting the index by 5 *)
     have 1: "(\<lambda>y. w^(y+5)) sums s \<Longrightarrow> ?f sums s" for s
     proof -
       assume "(\<lambda>y. w^(y+5)) sums s"
@@ -540,6 +565,7 @@ proof -
       then show ?thesis by simp
     qed
 
+    (* Compute the geometric sum and do some work to show w^5/(1-w) = w^3 *)
     have "(\<lambda>y. w^(5+y)) sums (w^5/(1-w))" using geometric_w_sums_transformation[where c=1] by simp
     then have "(\<lambda>y. w^(5+y)) sums (w^5/w^2)" using w_squared by auto
     moreover have "(w^5/w^2) = w^(Suc(Suc(Suc(Suc(Suc 0)))))/w^(Suc(Suc 0))"
@@ -550,6 +576,7 @@ proof -
     from this show ?thesis by (smt (verit, best) point_pow_unfold suminf_cong sums_unique)
   qed
 
+  (* Compute the inner series for the x > 0 columns *)
   have x_ge_0: "x > 0 \<Longrightarrow> suminf (point_pow max_initial_coins x) = 2*w^(x+3)" for x
   proof -
     assume "x > 0"
@@ -557,6 +584,7 @@ proof -
       for y by (simp add: \<open>x > 0\<close> max_initial_coins_def)
     let ?f = "(\<lambda>y. (if y \<ge> 5 then 2*w^(x+y) else 0))"
 
+    (* Drop the initial (zero) segment of the series, by shifting the index by 5 *)
     have 1: "(\<lambda>y. 2*w^(x+y+5)) sums s \<Longrightarrow> ?f sums s" for s
     proof -
       assume "(\<lambda>y. 2*w^(x+y+5)) sums s"
@@ -567,6 +595,7 @@ proof -
       then show ?thesis by simp
     qed
 
+    (* Compute the geometric sum and do some work to show 2*w^(x+5)/(1-w) = 2*w^(x+3) *)
     have "(\<lambda>y. 2*w^(x+5+y)) sums (2*w^(x+5)/(1-w))" using geometric_w_sums_transformation by simp
     then have 2: "(\<lambda>y. 2*w^(x+y+5)) sums (2*w^(x+5)/(1-w))"
       by (smt (verit) Groups.add_ac(2) group_cancel.add1 sums_cong)
@@ -578,6 +607,7 @@ proof -
     moreover have "x+5-2 = x+3" by simp
     ultimately have w_pow_diff: "2*w^(x+5)/w^2 = 2*w^(x+3)" by simp
 
+
     from 2 have "(\<lambda>y. 2*w^(x+y+5)) sums (2*w^(x+5)/w^2)" using w_squared by auto
     from this w_pow_diff have "(\<lambda>y. 2*w^(x+y+5)) sums (2*w^(x+3))" by metis
     from this 1 have "?f sums (2*w^(x+3))" by blast
@@ -585,49 +615,48 @@ proof -
       by (smt (verit, best) point_pow_unfold suminf_cong sums_unique)
   qed
 
+  (* Summary of above results: inner series values for x = 0 / x > 0 *)
   from x_eq_0 x_ge_0 have x_inner_sum:
     "suminf (point_pow max_initial_coins x) = (if x = 0 then w^3 else 2*w^(x+3))" for x by simp
 
-  show ?thesis
+  (* From this, compute the outer series *)
+  let ?f = "\<lambda>x. if x = 0 then w^3 else 2*w^(x+3)"
+
+  (* Split the series in the first term (i.e. the x = 0 inner series term) and the tail series
+    (i.e. the x > 0 inner series terms), since the latter all have the same form. *)
+  have "(\<lambda>x. ?f (x+1)) sums s \<Longrightarrow> ?f sums (s + (\<Sum>x<1. ?f x))" for s
+    using sums_iff_shift by fastforce
+  then have sum_split: "(\<lambda>x. ?f (x+1)) sums s \<Longrightarrow> ?f sums (s + ?f 0)" for s by simp
+
+  (* Compute the tail of the outer series *)
+  have "(\<lambda>x. ?f (x+1)) sums (2*w^2)"
   proof -
-    let ?f = "\<lambda>x. if x = 0 then w^3 else 2*w^(x+3)"
-    have "power_sum max_initial_coins = suminf ?f"
-      using x_inner_sum by simp
-    moreover have "suminf ?f = 1"
-    proof -
-      have "(\<lambda>x. ?f (x+1)) sums s \<Longrightarrow> ?f sums (s + (\<Sum>x<1. ?f x))" for s
-        using sums_iff_shift by fastforce
-      then have sum_split: "(\<lambda>x. ?f (x+1)) sums s \<Longrightarrow> ?f sums (s + ?f 0)" for s by simp
+    (* Compute the geometric sum *)
+    have "?f (x+1) = 2*w^(x+1+3)" for x by simp
+    then have 1: "?f (x+1) = 2*w^(4+x)" for x by auto
+    have 2: "(\<lambda>x. 2*w^(4+x)) sums (2*w^4/(1-w))"
+      using geometric_w_sums_transformation by simp
 
-      have "(\<lambda>x. ?f (x+1)) sums (2*w^2)"
-      proof -
-        have "?f (x+1) = 2*w^(x+1+3)" for x by simp
-        then have 1: "?f (x+1) = 2*w^(4+x)" for x by auto
-        have 2: "(\<lambda>x. 2*w^(4+x)) sums (2*w^4/(1-w))"
-          using geometric_w_sums_transformation by simp
-
-        from 2 have "(\<lambda>x. 2*w^(4+x)) sums (2*w^4/w^2)" using w_squared by simp
-        moreover have "2*w^4/w^2 = 2*w^(Suc(Suc(Suc(Suc 0))))/w^Suc(Suc 0)"
-          by (simp add: numeral_2_eq_2 power4_eq_xxxx)
-        then have "2*w^4/w^2 = 2*w^2" by (simp add: numeral_2_eq_2)
-        ultimately have 3: "(\<lambda>x. 2*w^(4+x)) sums (2*w^2)" by simp
-        from 1 3 show ?thesis by simp
-      qed
-      then have f_sums: "?f sums (2*w^2 + w^3)" using sum_split by simp
-
-      have "2*w^2 + w^3 = 2*w*w + w*w^2" by (smt (verit) One_nat_def nat_1_add_1 numeral_3_eq_3 
-            plus_1_eq_Suc power.simps(2) power2_diff zero_power2)
-      then have "2*w^2 + w^3 = w*(2*w + w^2)" by (simp add: ring_class.ring_distribs(1))
-      then have "2*w^2 + w^3 = w*(2*w + 1 - w)" using w_squared by simp
-      then have "2*w^2 + w^3 = w*(1 + w)" by simp
-      then have "2*w^2 + w^3 = w + w^2" by (simp add: power2_eq_square ring_class.ring_distribs(1))
-      then have "2*w^2 + w^3 = w + 1 - w" using w_squared by simp
-      then have two_w2_plus_w3: "2*w^2 + w^3 = 1" by simp     
-
-      from two_w2_plus_w3 f_sums show ?thesis using sums_unique by force
-    qed
-    ultimately show ?thesis by simp
+    (* Simplify it to 2*w^2 *)
+    from 2 have "(\<lambda>x. 2*w^(4+x)) sums (2*w^4/w^2)" using w_squared by simp
+    moreover have "2*w^4/w^2 = 2*w^(Suc(Suc(Suc(Suc 0))))/w^Suc(Suc 0)"
+      by (simp add: numeral_2_eq_2 power4_eq_xxxx)
+    then have "2*w^4/w^2 = 2*w^2" by (simp add: numeral_2_eq_2)
+    ultimately have 3: "(\<lambda>x. 2*w^(4+x)) sums (2*w^2)" by simp
+    from 1 3 show ?thesis by simp
   qed
+  (* From the first term and the tail, compute the outer series to be 2*w^2 + w^3 *)
+  then have f_sums: "?f sums (2*w^2 + w^3)" using sum_split by simp
+
+  (* Now show that 2*w^2 + w^3 = 1 *, which concludes the proof *)
+  have "2*w^2 + w^3 = w^2 + w^(2+1) + 1 - w" using w_squared by force
+  moreover have "w^2 + w^(2+1) + 1 - w = w - w + 1" using w_recurrence
+    by (metis add.commute diff_diff_eq2 diff_eq_eq one_add_one power_one_right)
+  ultimately have two_w2_plus_w3: "2*w^2 + w^3 = 1" by auto
+
+  from two_w2_plus_w3 f_sums have "suminf ?f = 1" using sums_unique by force 
+  moreover have "power_sum max_initial_coins = suminf ?f" using x_inner_sum by simp
+  ultimately show ?thesis by simp
 qed
 
 (*
@@ -635,15 +664,23 @@ qed
 *)
 lemma max_initial_coins_infinite: "infinite max_initial_coins"
 proof (rule ccontr)
+  (* Project the set of tuples to a set of naturals *)
   let ?proj = "((\<lambda>(x, _). x) ` max_initial_coins)"
+
   assume "\<not>infinite max_initial_coins"
+  (* If the set of tuples is finite, so is the projection *)
   then have "finite max_initial_coins" by simp
   then have "finite ?proj" by auto
-  moreover have "?proj \<noteq> {}" (* interesting shortcut sledgehammer took here: *)
+
+  (* ?proj is non-empty and finite, so it has a maximal element k *)
+  moreover have "?proj \<noteq> {}" 
+  (* interesting shortcut sledgehammer found here: if max_initial_coins was empty, it would have
+     `power_sum` of 0, but it has `power_sum` of 1 *)
     using finite_power_sum max_initial_coins_eq_one by force
   ultimately obtain k where max_k: "k \<in> ?proj \<and> (\<forall>j \<in> ?proj. k \<le> j \<longrightarrow> k = j)"
     using finite_has_maximal by metis
 
+  (* But (k+1, 5) is in max_initial_coins, hence k+1 is in the projection: contradiction *)
   have "(k+1, 5) \<in> max_initial_coins" using max_initial_coins_def by auto
   then have "k+1 \<in> ?proj" by auto
   then show "False" using max_k by auto
@@ -658,6 +695,7 @@ lemma initial_finite_coins_less_one:
 shows "power_sum coins < 1"
 proof -
   have "coins \<subseteq> max_initial_coins" by (simp add: initial initial_coins_subset)
+  (* Since `coins` is finite but `max_initial_coins` is infinite, `coins` is a proper subset *)
   moreover have "coins \<noteq> max_initial_coins" using finite max_initial_coins_infinite by blast
   ultimately have "coins \<subset> max_initial_coins" by blast
   then have "power_sum coins < power_sum max_initial_coins" using powersum_subset_less by auto
@@ -674,6 +712,7 @@ section \<open>Power sums and jumps\<close>
 
 (*
   A `jump` transition from one coin configuration to another weakly decreases the `power_sum`.
+  (This is the second crucial property of the number w.)
 *)
 theorem jump_decreases_power_sum: "jump A B \<Longrightarrow> power_sum B \<le> power_sum A"
 (*
@@ -687,6 +726,7 @@ theorem jump_decreases_power_sum: "jump A B \<Longrightarrow> power_sum B \<le> 
 proof (induction rule: jump.induct)
   case (left x y A B)
   let ?x = "nat (abs x)"
+  (* Show that the two power sums differ by the terms of the three coin positions that changed *)
   let ?full_diff = "w^(y + nat (abs (x-2))) - w^(y + nat (abs (x-1))) - w^(y + nat (abs x))"
   have power_sum_B: "power_sum (A - {(x, y), (x - 1, y)} \<union> {(x - 2, y)})
       = power_sum A + ?full_diff"
@@ -694,14 +734,18 @@ proof (induction rule: jump.induct)
       power_sum_union_singleton
     by (smt (verit, del_insts) Diff_iff Diff_insert2 add.commute insertE insert_Diff prod.inject)
 
+  (* Factor out w^y to simplify the remaining argument: the other factor is now called ?diff *)
   then have "?full_diff = w^y*w^(nat (abs (x-2))) - w^y*w^(nat (abs (x-1))) - w^y*w^(nat (abs x))"
     by (metis power_add)
   then have full_diff_diff: 
     "?full_diff = w^y * (w^(nat (abs (x-2))) - w^(nat (abs (x-1))) - w^(nat (abs x)))" 
     (is "?full_diff = w^y * ?diff") by (simp add: right_diff_distrib)
 
+  (* Show that ?diff is non-positive, i.e. the power sum weakly decreases, by three cases *)
   have "?diff  \<le> 0"
   proof (cases "x \<le> 0")
+    (* If x \<le> 0, a left jump goes in the direction of increasing exponents: 
+      the power sum strictly decreases *)
     case x_nonpos: True
     then have "?diff = w^(?x+2) - w^(?x+1) - w^(?x)"
       by (smt (verit, ccfv_threshold) nat_1_add_1 nat_add_distrib nat_numeral numeral_eq_one_iff)
@@ -711,6 +755,8 @@ proof (induction rule: jump.induct)
     case x_pos: False
     then show ?thesis proof (cases "x \<ge> 2")
       case x_geq_2: True
+      (* If x \<ge> 2, a left jump goes in the direction of decreasing exponents: 
+        the power sum is unchanged because of the w recurrence relation *)
       have "?diff = w^(?x-2) - w^(?x-1) - w^(?x)" proof -
         have "nat (abs (x-2)) = ?x - 2" using x_geq_2 by (simp add: nat_diff_distrib')
         moreover have "nat (abs (x-1)) = ?x - 1" using x_geq_2 by (simp add: nat_diff_distrib')
@@ -722,14 +768,10 @@ proof (induction rule: jump.induct)
             nat_0_iff nat_1_add_1 nat_2 nat_diff_distrib plus_1_eq_Suc x_geq_2)
       then show ?thesis by (smt (verit, ccfv_SIG) w_recurrence)
     next
-      case x_eq_1_or_2: False
-      then show ?thesis proof (cases "x = 1")
-        case x_eq_1: True
-        then show ?thesis by auto
-      next
-        case x_eq_2: False
-        then show ?thesis using x_eq_1_or_2 x_pos by fastforce
-      qed
+      case x_eq_1: False
+      (* If x = 1, a left jump crosses the x = 0 column and ?diff = w - 1 - w < 0 *)
+      then have "x = 1" using x_pos by auto
+      then show ?thesis by auto
     qed
   qed
   moreover have "w^y > 0" by (simp add: w_range)
@@ -741,6 +783,7 @@ next
   *)
   case (right x y A B)
   let ?x = "nat (abs x)"
+  (* Show that the two power sums differ by the terms of the three coin positions that changed *)
   let ?full_diff = "w^(y + nat (abs (x+2))) - w^(y + nat (abs (x+1))) - w^(y + nat (abs x))"
   have power_sum_B: "power_sum (A - {(x, y), (x + 1, y)} \<union> {(x + 2, y)})
       = power_sum A + ?full_diff"
@@ -748,14 +791,18 @@ next
       power_sum_union_singleton
     by (smt (z3) Diff_iff Diff_insert2 add.commute insertE insert_Diff prod.inject)
 
+  (* Factor out w^y to simplify the remaining argument: the other factor is now called ?diff *)
   then have "?full_diff = w^y*w^(nat (abs (x+2))) - w^y*w^(nat (abs (x+1))) - w^y*w^(nat (abs x))" 
     by (metis power_add)
   then have full_diff_diff:
       "?full_diff = w^y * (w^(nat (abs (x+2))) - w^(nat (abs (x+1))) - w^(nat (abs x)))" 
     (is "?full_diff = w^y * ?diff") by (simp add: right_diff_distrib)
 
+  (* Show that ?diff is non-positive, i.e. the power sum weakly decreases, by three cases *)
   have "?diff  \<le> 0"
   proof (cases "x \<ge> 0")
+    (* If x \<ge> 0, a right jump goes in the direction of increasing exponents: 
+      the power sum strictly decreases *)
     case x_nonneg: True
     then have "?diff = w^(?x+2) - w^(?x+1) - w^(?x)"
       by (smt (verit, ccfv_threshold) nat_1_add_1 nat_add_distrib nat_numeral numeral_eq_one_iff)
@@ -765,6 +812,8 @@ next
     case x_neg: False
     then show ?thesis proof (cases "x \<le> -2")
       case x_leq_minus2: True
+      (* If x \<le> -2, a right jump goes in the direction of decreasing exponents: 
+        the power sum is unchanged because of the w recurrence relation *)
       have "?diff = w^(?x-2) - w^(?x-1) - w^(?x)" proof -
         have "nat (abs (x+2)) = ?x - 2" using x_leq_minus2 by (simp add: nat_diff_distrib')
         moreover have "nat (abs (x+1)) = ?x - 1" using x_leq_minus2 by (simp add: nat_diff_distrib')
@@ -776,14 +825,10 @@ next
             nat_0_iff nat_1_add_1 nat_2 nat_diff_distrib plus_1_eq_Suc x_leq_minus2)
       then show ?thesis by (smt (verit, ccfv_SIG) w_recurrence)
     next
-      case x_eq_minus_1_or_minus_2: False
-      then show ?thesis proof (cases "x = -1")
-        case x_eq_minus_1: True
-        then show ?thesis by auto
-      next
-        case x_eq_minus_2: False
-        then show ?thesis using x_eq_minus_1_or_minus_2 x_neg by fastforce
-      qed
+      case x_eq_minus_1: False
+      (* If x = -1, a right jump crosses the x = 0 column and ?diff = w - 1 - w < 0 *)   
+      then have "x = -1" using x_neg by auto
+      then show ?thesis by auto
     qed
   qed
   moreover have "w^y > 0" by (simp add: w_range)
@@ -792,10 +837,11 @@ next
 next
   case (up x y A B)
   (*
-    The "up" part is simpler (don't need to deal with the `abs` change of direction at x=0).
+    The "up" part is simpler (don't need to deal with crossing the x = 0 column).
   *)
   let ?x = "nat (abs x)"
 
+  (* Show that the two power sums differ by the terms of the three coin positions that changed *)
   let ?full_diff = "w^(?x + (y-2)) - w^(?x + (y-1)) - w^(?x + y)"
   have power_sum_B: "power_sum (A - {(x, y), (x, y-1)} \<union> {(x, y-2)})
       = power_sum A + ?full_diff"
@@ -803,12 +849,15 @@ next
       power_sum_union_singleton
     by (smt (verit) Diff_insert2 diff_diff_left insert_Diff insert_iff nat_1_add_1 prod.inject)
 
+  (* Factor out w^y to simplify the remaining argument: the other factor is now called ?diff *)
   then have "?full_diff = w^(?x)*w^(y-2) - w^(?x)*w^(y-1) - w^(?x)*w^y" by (metis power_add)
   then have full_diff_diff: "?full_diff = w^(?x) * (w^(y-2) - w^(y-1) - w^y)" 
     (is "?full_diff = w^(?x) * ?diff") by (simp add: right_diff_distrib)
 
+  (* Show that ?diff is non-positive, i.e. the power sum weakly decreases: only y \<ge> 2 is possible *)
   have "?diff  \<le> 0"
   proof (cases "y \<ge> 2")
+    (* The up jump goes in the direction of decreasing exponents: the power sum is unchanged *)
     case True
     then have "?diff = w^(y-2) - w^(y-2+1) - w^(y-2+2)" using nat_le_iff_add by auto
     then have "?diff = 0" using w_recurrence[where n="y-2"] by simp
@@ -825,10 +874,11 @@ next
 next
   case (down x y A B)
   (*
-    The "down" part is even shorter (don't need to deal with the y=0 upper border).
+    The "down" part is even shorter (don't need to deal with the y = 0 upper border).
   *)
   let ?x = "nat (abs x)"
 
+  (* Show that the two power sums differ by the terms of the three coin positions that changed *)
   let ?full_diff = "w^(?x + (y+2)) - w^(?x + (y+1)) - w^(?x + y)"
   have power_sum_B: "power_sum (A - {(x, y), (x, y+1)} \<union> {(x, y+2)})
       = power_sum A + ?full_diff"
@@ -837,10 +887,13 @@ next
     by (smt (verit) Diff_iff Diff_insert2 add_diff_cancel_left' diff_is_0_eq' insertE insert_Diff
         nle_le one_neq_zero prod.inject)
 
+  (* Factor out w^y to simplify the remaining argument: the other factor is now called ?diff *)
   then have "?full_diff = w^(?x)*w^(y+2) - w^(?x)*w^(y+1) - w^(?x)*w^y" by (metis power_add)
   then have full_diff_diff: "?full_diff = w^(?x) * (w^(y+2) - w^(y+1) - w^y)" 
     (is "?full_diff = w^(?x) * ?diff") by (simp add: right_diff_distrib)
 
+  (* Show that ?diff is non-positive, i.e. the power sum weakly decreases 
+     (it actually strictly decreases: down jumps are in the direction of increasing exponents *)
   have "?diff  \<le> 0" by (smt (verit) w_range w_recurrence zero_less_power)
   moreover have "w^?x > 0" by (simp add: w_range)
   ultimately have "?full_diff \<le> 0" using full_diff_diff zero_less_mult_iff by smt
@@ -859,7 +912,7 @@ section \<open>Game unwinnable (1) (Goal field/finite initial configuration)\<cl
 text \<open>This section gives the first (and weakest) version of the final theorem: We show that
   from a finite initial configuration, the goal field (0, 0) cannot be reached.
   
-  The theorem is strenghted in the following sections
+  The theorem is strengthened in the following sections
   - to allow any (possibly non-finite) initial configuration and
   - to show that not only the goal field (0, 0), but also no other field (x, 0) on the row y = 0
       can be reached.\<close>
@@ -874,12 +927,17 @@ theorem finite_initial_coins_cannot_reach_goal_field:
       and reaches: "jumps A B"
     shows "(0, 0) \<notin> B"
 proof (rule ccontr)
+  (* Assume the goal field is reached *)
   assume "\<not> (0, 0) \<notin> B"
   then have "{(0, 0)} \<subseteq> B" by simp
+
+  (* But A has a power sum less than 1,...*)
   have "power_sum A < 1"
     using initial initial_finite_coins_less_one finite by blast
+  (* ...while B has a power sum \<ge> 1... *)
   moreover have "power_sum B \<ge> 1"
     by (metis \<open>{(0, 0)} \<subseteq> B\<close> goal_field_value_1 powersum_subset_leq)
+  (* ...and the power sum of B cannot be greater than that of A. Contradiction! *)
   moreover have "power_sum A \<ge> power_sum B"
     using jumps_decrease_power_sum reaches by blast
   ultimately show "False" by simp
@@ -891,7 +949,7 @@ text \<open>This section strengthens the first version of the unwinnability theo
   goal field (0, 0) is not special, and that in fact no cell (x, 0) on the goal row y = 0 can be
   reached.
 
-  We introduce a shift operation and show that any gameplay reaching some field (x, 0) can be
+  We introduce a shift operation and show that any gameplay reaching a field (x, 0) can be
   shifted in order to reach (0, 0).\<close>
 
 subsection \<open>Shift operation\<close>
@@ -950,9 +1008,10 @@ lemma jump_shift_inv_aux:
       and BA: "B = A - {(x1, y1), (x2, y2)} \<union> {(x3, y3)}"
     shows "B' = A' - {(x1+d, y1), (x2+d, y2)} \<union> {(x3+d, y3)}" (is "B' = A' - ?oldshift \<union> ?newshift")
 proof -
-  let ?old = "{(x1, y1), (x2, y2)}"
-  let ?new = "{(x3, y3)}"
+  let ?old = "{(x1, y1), (x2, y2)}" (* ?old are the removed coin positions *)
+  let ?new = "{(x3, y3)}" (* ?new is the added coin position *)
   from B' BA have "B' = shift (A - ?old \<union> ?new) d" by simp
+  (* Use that `shift` commute with set differences and unions *)
   then have "B' = shift A d - shift ?old d \<union> shift ?new d"
     using shift_union shift_minus by presburger
   moreover have "shift ?old d = ?oldshift" by force
@@ -968,7 +1027,9 @@ lemma jump_shift_inv:
       and A': "A' = shift A d"
       and B': "B' = shift B d"
     shows "jump A' B'"
-using \<open>jump A B\<close> A' B' proof (induction rule: jump.induct)
+  using \<open>jump A B\<close> A' B' proof (induction rule: jump.induct)
+(* Distinguish the four jump directions, and for each one apply the previous auxilliary lemma 
+    to show that the corresponding `jump` conditions hold for the shifted versions. *)
   case (left x y A B)
   then have "(x+d, y) \<in> A' \<and> (x-1+d, y) \<in> A' \<and> (x-2+d, y) \<notin> A'" by simp
   moreover from left have "B' = A' - {(x+d, y), (x-1+d, y)} \<union> {(x-2+d, y)}" 
@@ -1002,6 +1063,7 @@ lemma jump_shift_inv_eq:
       and B': "B' = shift B d"
     shows "jump A B \<longleftrightarrow> jump A' B'"
 proof
+  (* One direction was already shown, the other direction follows by shifting back *)
   show "jump A B \<Longrightarrow> jump A' B'" using A' B' jump_shift_inv by blast
   assume "jump A' B'"
   moreover have "A = shift A' (-d)" using A' shift_inverse by presburger
@@ -1028,14 +1090,20 @@ theorem finite_initial_coins_cannot_reach_goal_row:
       and reaches: "jumps A B"
     shows "\<forall>x. (x, 0) \<notin> B"
 proof (rule ccontr)
+  (* Assume some field (x, 0) on the goal row is reached *)
   assume "\<not> (\<forall>x. (x, 0) \<notin> B)"
   then obtain x where "(x, 0) \<in> B" by blast
+
+  (* Shift A and B by -x and show that now (0, 0) is reached, as well as the other conditions
+       of the first version of the theorem are satisfied *)
   let ?A' = "shift A (-x)"
   let ?B' = "shift B (-x)"
   have "finite ?A'" using finite shift_finite by blast
   moreover have "initial_coins ?A'" using initial initial_coins_def by fastforce
   moreover have "(0, 0) \<in> ?B'" using \<open>(x, 0) \<in> B\<close> by force
   moreover have "jumps ?A' ?B'" using jumps_shift_inv reaches by blast
+
+  (* Use the first version of the theorem to show the contradiction *)
   ultimately show "False" using finite_initial_coins_cannot_reach_goal_field by blast
 qed
 
@@ -1054,9 +1122,9 @@ text \<open>This section strengthens another aspect of the first version of the 
 *)
 lemma jump_keeps_cofinite_coins:
   assumes "jump A B"
-      and infinite: "infinite A"
     shows "\<exists>D. finite D \<and> A \<inter> B = A - D"
-using \<open>jump A B\<close> infinite proof (induction rule: jump.induct)
+using \<open>jump A B\<close> proof (induction rule: jump.induct)
+(* Show that only a finite number of coins change for each of the four jumping directions *)
   case (left x y A B)
   then have "A \<inter> B = A - {(x, y), (x-1, y)}" by force
   then show ?case by (meson finite.simps)
@@ -1075,7 +1143,10 @@ next
 qed
 
 (*  
-  Also, if `jumps` transitions A to B, all but a finite number of elements from A are also in B.
+  Moreover, if a sequence of `jump`s transitions an infinite A to B, all but a finite number of
+    elements from A are also in B.
+  (We will only use that A \<inter> B is non-empty, but co-finiteness is needed to pull through the
+    induction here.)
 *)
 lemma jumps_keeps_cofinite_coins:
   assumes reaches: "jumps A B"
@@ -1087,15 +1158,19 @@ proof (induction rule: star.induct)
   then show ?case by auto
 next
   case (step X Y Z)
+  (* Obtain finite sets D1 = X - (X \<inter> Y) and D2 = Y - (Y \<inter> Z) *)
   then obtain D1 where D1: "finite D1 \<and> X \<inter> Y = X - D1"
     using jump_keeps_cofinite_coins by presburger
   then have "infinite Y"
     by (metis Diff_infinite_finite finite_Int step.prems)
   from this step obtain D2 where D2: "finite D2 \<and> Y \<inter> Z = Y - D2" by blast
 
+  (* Define a set ?D3 = X - (X \<inter> Z) *)
   let ?D3 = "X - (X \<inter> Z)"
+  (* Show that the set X - (D1 \<union> D2), which is co-finite wrt. X, is contained in X \<inter> Z *)
   have "(X \<inter> Y) \<inter> (Y \<inter> Z) \<subseteq> X \<inter> Z" by blast
   moreover have "(X \<inter> Y) \<inter> (Y \<inter> Z) = X - (D1 \<union> D2)" using D1 D2 by blast
+  (* From this, show that ?D3 is finite *)
   ultimately have "finite ?D3"
     by (metis D1 D2 Diff_Diff_Int Diff_Int finite_Int finite_UnI sup.absorb_iff1)
   then show ?case by blast
@@ -1111,33 +1186,45 @@ theorem initial_coins_cannot_reach_goal_field:
     shows "(0, 0) \<notin> B"
 proof (cases "finite A")
   case True
+  (* For a finite set, use the first version of the theorem *)
   then show ?thesis using finite_initial_coins_cannot_reach_goal_field initial reaches by simp
 next
   case infiniteA: False
+  (* For an infinite set, argue that at least one initial coin is still in place, which makes
+       the power sum of B strictly greater than one if it contains the goal field *)
   show ?thesis
   proof (rule ccontr)
+    (* Assume the goal field is reached *)
     assume "\<not> (0, 0) \<notin> B"
     then have "{(0, 0)} \<subseteq> B" by simp
+    (* The power sum of A is \<le> 1 (but now, differently than before, possibly equal to 1) *)
     have "power_sum A \<le> 1"
       using initial initial_coins_leq_one by blast
+    (* Show that the power sum of B is > 1: *)
     moreover have "power_sum B > 1"
     proof -
+      (* Obtain some element (x, y) from A that is still in place in B *)
       have "\<exists>D. finite D \<and> A \<inter> B = A - D" 
         using reaches infiniteA jumps_keeps_cofinite_coins by blast
       then have "A \<inter> B \<noteq> {}" by (metis finite.emptyI finite_Diff2 infiniteA)
       then obtain x y where xy: "(x, y) \<in> A \<inter> B" by  fastforce
+
+      (* Show that both (x, y) and (0, 0) are in B and are different *)
       then have "{(x,y), (0,0)} \<subseteq> B" using \<open>{(0, 0)} \<subseteq> B\<close> by auto
       have "(x,y) \<noteq> (0, 0)" proof -
         have "(x, y) \<in> A" using xy by simp
         then have "below_the_line (x, y)" using initial initial_coins_def by blast
         then show ?thesis by force
       qed
+
+      (* Then show that the power sum of B is strictly greater than 1 *)
       then have "power_sum {(x,y), (0,0)} = w^(nat (abs x) + y) + 1"
         by (smt (verit) Diff_insert_absorb goal_field_value_1 insertCI insert_absorb
            power_sum_minus_singleton singleton_insert_inj_eq)
       then show ?thesis using \<open>{(x,y), (0,0)} \<subseteq> B\<close>
         by (smt (verit, ccfv_SIG) powersum_subset_leq w_range zero_less_power)
     qed
+    (* Moreover, `power_sum A \<ge> power_sum B`. Contradiction! *)
     moreover have "power_sum A \<ge> power_sum B"
       using jumps_decrease_power_sum reaches by blast
     ultimately show "False" by simp
@@ -1158,13 +1245,19 @@ theorem initial_coins_cannot_reach_goal_row:
       and reaches: "jumps A B"
     shows "\<forall>x. (x, 0) \<notin> B"
 proof (rule ccontr)
+  (* Assume some field (x, 0) on the goal row is reached *)
   assume "\<not> (\<forall>x. (x, 0) \<notin> B)"
   then obtain x where "(x, 0) \<in> B" by blast
+
+  (* Shift A and B by -x and show that now (0, 0) is reached, as well as the other conditions
+       of the third version of the theorem are satisfied *)
   let ?A' = "shift A (-x)"
   let ?B' = "shift B (-x)"
   have "initial_coins ?A'" using initial initial_coins_def by fastforce
   moreover have "(0, 0) \<in> ?B'" using \<open>(x, 0) \<in> B\<close> by force
   moreover have "jumps ?A' ?B'" using jumps_shift_inv reaches by blast
+
+  (* Use the third version of the theorem to show the contradiction *)
   ultimately show "False" using initial_coins_cannot_reach_goal_field by blast
 qed
 
@@ -1173,22 +1266,24 @@ section \<open>The second-highest row can be reached\<close>
 
 text \<open>Finally, a positive result: The second-highest row can actually be reached.
   This is shown by an example, which is minimal according to https://www.oma.org.ar/red/la_rana.htm.
-  The proof is in apply style as this turned out to be more convenient for this kind of proof.\<close>
+\<close>
 
 (*
-The start configuration looks like this: (Column 0 is marked with |)
+  The start configuration looks like this, and has 20 coins: (Column 0 is marked with |)
 
-----|--
-xxxxxxx
-  xxxxx
- xxxxxx
-   xx  
+      ------|----
+      ..ooooooo..
+      ....ooooo..
+      ...oooooo..
+      .....oo....
+      ...........
 
-From this, we can reach {(0, 1)} in 20 jumps.
+  From this, we can reach {(0, 1)} in 19 jumps.
 *)
 lemma "jumps {(-1,5), (-1,6), (0,5), (0,6), (1,5), (1,6), (2,5), (2,6),(-1,7), (-1,8), (0,7), (0,8),
         (1,7), (2,7), (-2,7), (-3,7),(-2,6), (-2,5),(-3,5), (-4,5)}
       {(0,1)}"
+(* The proof is in apply style as this turned out to be more convenient for this kind of proof. *)
   unfolding jumps_def
   apply (rule star.step[where y="{(-1,4),(0,5),(0,6),(1,5),(1,6),(2,5),(2,6),(-1,7),(-1,8),(0,7),
     (0,8),(1,7),(2,7),(-2,7),(-3,7),(-2,6),(-2,5),(-3,5),(-4,5)}"])
