@@ -167,30 +167,40 @@ fun power_sum :: "coins \<Rightarrow> real" where
 
 section \<open>Power sums of w\<close>
 
-(* kind of specific lemma, but an argument of this form
-   is needed quite often in the following
+(* 
+  Kind of specific lemma about transforming geometric series, but an argument of this form
+   is needed quite often in the following and is a bit of work to prove.
 *)
-lemma geometric_sum_transformation: "(\<lambda>y. w^y) sums s \<Longrightarrow> (\<lambda>y. c*w^(a+y)) sums (c*w^(a)*s)"
+lemma geometric_sums_transformation: "norm (b::real) < 1 \<Longrightarrow> (\<lambda>y. c*b^(a+y)) sums (c*b^(a)/(1-b))"
 proof -
-  assume "(\<lambda>y. w^y) sums s"
-  then have sum_unfold: "(\<lambda>n. \<Sum>i<n. (\<lambda>y. w^y) i) \<longlonglongrightarrow> s" by (simp add: sums_def)
+  let ?s = "1/(1-b)"
+  assume "norm b < 1"
+  then have "(\<lambda>y. b^y) sums ?s" using geometric_sums by blast
+  then have sum_unfold: "(\<lambda>n. \<Sum>i<n. (\<lambda>y. b^y) i) \<longlonglongrightarrow> ?s" by (simp add: sums_def)
   have "(\<lambda>_. c*w^a) \<longlonglongrightarrow> c*w^a" by simp
   from this sum_unfold have 
-    "(\<lambda>n. c*w^a * (\<Sum>i<n. (\<lambda>y. w^y) i)) \<longlonglongrightarrow> c*w^a * s"
+    "(\<lambda>n. c*b^a * (\<Sum>i<n. (\<lambda>y. b^y) i)) \<longlonglongrightarrow> c*b^a * ?s"
     using tendsto_mult by blast
-  moreover have "c*w^a * (\<Sum>i<(n::nat). (\<lambda>y. w^y) i) 
-      = (\<Sum>i<n. (\<lambda>y. c*w^a * w^y) i)" for n
+  moreover have "c*b^a * (\<Sum>i<(n::nat). (\<lambda>y. b^y) i) 
+      = (\<Sum>i<n. (\<lambda>y. c*b^a * b^y) i)" for n
     using sum_distrib_left by blast
-  moreover have "(\<Sum>i<n. (\<lambda>y. c*w^a * w^y) i) = (\<Sum>i<n. (\<lambda>y. c*w^(a+y)) i)"
+  moreover have "(\<Sum>i<n. (\<lambda>y. c*b^a * b^y) i) = (\<Sum>i<n. (\<lambda>y. c*b^(a+y)) i)"
     for n by (metis ab_semigroup_mult_class.mult_ac(1) power_add)
-  ultimately have "(\<lambda>n. (\<Sum>i<n. (\<lambda>y. c*w^(a+y)) i)) \<longlonglongrightarrow> c*w^a * s" by simp
-  (*moreover have "x+5+y = x+y+5" for y by simp
-  ultimately have "(\<lambda>n. (\<Sum>i<n. (\<lambda>y. 2*w^(x+y+5)) i)) \<longlonglongrightarrow> 2*w^(x+5) * s" by simp*)
-  then have "(\<lambda>y. c*w^(a+y)) sums (c*w^a * s)" by (simp add: sums_def)
+  ultimately have "(\<lambda>n. (\<Sum>i<n. (\<lambda>y. c*b^(a+y)) i)) \<longlonglongrightarrow> c*b^a * ?s" by simp
+  then have "(\<lambda>y. c*b^(a+y)) sums (c*b^a * ?s)" by (simp add: sums_def)
   then show ?thesis by simp
 qed
 
-(* TODO remove if not needed? But may be needed for point_pow_summable etc. *)
+(*
+  The lemma holds for b=w, because w in (0, 1).
+*)
+corollary geometric_w_sums_transformation: "(\<lambda>y. c*w^(a+y)) sums (c*w^(a)/(1-w))"
+  using w_range geometric_sums_transformation[where b=w] by simp
+
+(*
+  Variant of the comparison test: if a sequence f is summable and dominates another non-negative
+    sequence g, then g is summable as well.
+*)
 lemma summable_nonneg_comparison_test:
   assumes f_summable: "summable (f::nat \<Rightarrow> real)"
       and f_dom_g: "\<And>i. g i \<le> f i"
@@ -218,9 +228,8 @@ proof -
   let ?f = "point_pow all_coins x"
   assume "x > 0"
   then have f: "?f y = 2 * w^(x+y)" for y by (simp add: all_coins_def)
-  moreover have "(\<lambda>y. w^y) sums (1/(1-w))" using geometric_sums w_range by force
-  ultimately have "(\<lambda>y. 2 * w^(x+y)) sums (2*w^x/(1-w))" 
-    using geometric_sum_transformation[where c=2 and a=x] by fastforce
+  then have "(\<lambda>y. 2 * w^(x+y)) sums (2*w^x/(1-w))" 
+    using geometric_w_sums_transformation by fastforce
   then show ?thesis using f by presburger
 qed
 
@@ -264,12 +273,7 @@ proof -
     ultimately show ?thesis by force
   qed
   moreover have "(\<lambda>x. 8*w^x) sums (8/(1-w))"
-  proof -
-    have "(\<lambda>x. w^x) sums (1/(1-w))" using geometric_sums w_range by force
-    then have "(\<lambda>x. 8*w^(0+x)) sums (8*w^0*1/(1-w))"
-      using geometric_sum_transformation[where a=0] by fastforce
-    then show ?thesis by auto
-  qed
+    using geometric_w_sums_transformation[where a=0] by simp
   then have "summable (\<lambda>x. 8*w^x)" using sums_summable by blast
   moreover have "0 \<le> suminf (point_pow all_coins x)" for x
     using point_pow_summable suminf_nonneg w_range by force
@@ -460,10 +464,6 @@ qed
 
 theorem max_initial_coins_eq_one: "power_sum max_initial_coins = 1"
 proof -
-  have "norm w < 1" using w_range by auto
-  then have "(\<lambda>n. w^n) sums (1/(1-w))" using geometric_sums by blast
-  then have w_geometric_sum: "(\<lambda>n. w^n) sums (1/(w^2))" using w_squared by simp
-
   have x_eq_0: "x = 0 \<Longrightarrow> suminf (point_pow max_initial_coins x) = w^3" for x
   proof -
     assume "x = 0"
@@ -480,17 +480,14 @@ proof -
       then show ?thesis by simp
     qed
 
-    have "(\<lambda>y. w^y) sums s \<Longrightarrow> (\<lambda>y. w^(5+y)) sums (w^5*s)" for s
-      using geometric_sum_transformation[where c=1 and a=5] by simp
-    then have 2: "(\<lambda>y. w^y) sums s \<Longrightarrow> (\<lambda>y. w^(y+5)) sums (w^5*s)" for s
-      by (metis (no_types, lifting) Groups.add_ac(2) sums_cong)
-
-    from 2 w_geometric_sum have "(\<lambda>y. w^(y+5)) sums (w^5/w^2)" by fastforce
-    then have "(\<lambda>y. w^(y+5)) sums w^3" (* wtf... *)
-      by (smt (z3) One_nat_def add_diff_cancel_right' le_add2 nat_1_add_1 numeral_3_eq_3 plus_1_eq_Suc power_Suc power_diff power_numeral_odd power_one_right times_divide_eq_left w_squared zero_power2)
+    have "(\<lambda>y. w^(5+y)) sums (w^5/(1-w))" using geometric_w_sums_transformation[where c=1] by simp
+    then have "(\<lambda>y. w^(5+y)) sums (w^5/w^2)" using w_squared by auto
+    moreover have "(w^5/w^2) = w^(Suc(Suc(Suc(Suc(Suc 0)))))/w^(Suc(Suc 0))"
+      by (simp add: numeral_2_eq_2 numeral_Bit1)
+    then have "w^5/w^2 = w^3" by (simp add: numeral_3_eq_3)
+    ultimately have "(\<lambda>y. w^(y+5)) sums w^3" by (metis (no_types, lifting) add.commute sums_cong)
     from this 1 have "?f sums w^3" by simp
-    from this show ?thesis
-      by (smt (verit, best) point_pow_unfold suminf_cong sums_unique)
+    from this show ?thesis by (smt (verit, best) point_pow_unfold suminf_cong sums_unique)
   qed
 
   have x_ge_0: "x > 0 \<Longrightarrow> suminf (point_pow max_initial_coins x) = 2*w^(x+3)" for x
@@ -510,9 +507,8 @@ proof -
       then show ?thesis by simp
     qed
 
-    have "(\<lambda>y. w^y) sums s \<Longrightarrow> (\<lambda>y. 2*w^(x+5+y)) sums (2*w^(x+5)*s)" for s
-      using geometric_sum_transformation by simp
-    then have 2: "(\<lambda>y. w^y) sums s \<Longrightarrow> (\<lambda>y. 2*w^(x+y+5)) sums (2*w^(x+5)*s)" for s
+    have "(\<lambda>y. 2*w^(x+5+y)) sums (2*w^(x+5)/(1-w))" using geometric_w_sums_transformation by simp
+    then have 2: "(\<lambda>y. 2*w^(x+y+5)) sums (2*w^(x+5)/(1-w))"
       by (smt (verit) Groups.add_ac(2) group_cancel.add1 sums_cong)
 
     have "2 \<le> x+5" by simp
@@ -521,7 +517,7 @@ proof -
     moreover have "x+5-2 = x+3" by simp
     ultimately have w_pow_diff: "2*w^(x+5)/w^2 = 2*w^(x+3)" by simp
 
-    from 2 w_geometric_sum have "(\<lambda>y. 2*w^(x+y+5)) sums (2*w^(x+5)/w^2)" by fastforce
+    from 2 have "(\<lambda>y. 2*w^(x+y+5)) sums (2*w^(x+5)/w^2)" using w_squared by auto
     from this w_pow_diff have "(\<lambda>y. 2*w^(x+y+5)) sums (2*w^(x+3))" by metis
     from this 1 have "?f sums (2*w^(x+3))" by blast
     from this show ?thesis
@@ -546,15 +542,14 @@ proof -
       proof -
         have "?f (x+1) = 2*w^(x+1+3)" for x by simp
         then have 1: "?f (x+1) = 2*w^(4+x)" for x by auto
-        have 2: "(\<lambda>x. w^x) sums s \<Longrightarrow> (\<lambda>x. 2*w^(4+x)) sums (2*w^4*s)" for s
-          using geometric_sum_transformation by simp
+        have 2: "(\<lambda>x. 2*w^(4+x)) sums (2*w^4/(1-w))"
+          using geometric_w_sums_transformation by simp
 
-        from 2 w_geometric_sum have "(\<lambda>x. 2*w^(4+x)) sums (2*w^4/(w^2))" by fastforce
-        then have 3: "(\<lambda>x. 2*w^(4+x)) sums (2*w^2)"
-          by (smt (verit, ccfv_threshold) One_nat_def add.commute add_diff_cancel_right'
-             comm_semiring_class.distrib divide_eq_0_iff le_add2 nat_1_add_1 numeral_3_eq_3
-             numeral_plus_one plus_1_eq_Suc power_add power_diff real_sqrt_eq_1_iff semiring_norm(2)
-             semiring_norm(8) times_divide_eq_right w_def)
+        from 2 have "(\<lambda>x. 2*w^(4+x)) sums (2*w^4/w^2)" using w_squared by simp
+        moreover have "2*w^4/w^2 = 2*w^(Suc(Suc(Suc(Suc 0))))/w^Suc(Suc 0)"
+          by (simp add: numeral_2_eq_2 power4_eq_xxxx)
+        then have "2*w^4/w^2 = 2*w^2" by (simp add: numeral_2_eq_2)
+        ultimately have 3: "(\<lambda>x. 2*w^(4+x)) sums (2*w^2)" by simp
         from 1 3 show ?thesis by simp
       qed
       then have f_sums: "?f sums (2*w^2 + w^3)" using sum_split by simp
