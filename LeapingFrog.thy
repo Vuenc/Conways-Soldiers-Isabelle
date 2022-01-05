@@ -926,7 +926,26 @@ proof (induction rule: finite_induct)
   ultimately show ?case using insert.IH xy by auto
 qed simp
 
-(* TODO generalize the argument used here four times *)
+(*
+  Auxilliary lemma to generalize an argument that will be made in each of the four jumping
+    directions in the following proof.
+*)
+lemma jump_shift_inv_aux:
+  assumes A': "A' = shift A d"
+      and B': "B' = shift B d"
+      and BA: "B = A - {(x1, y1), (x2, y2)} \<union> {(x3, y3)}"
+    shows "B' = A' - {(x1+d, y1), (x2+d, y2)} \<union> {(x3+d, y3)}" (is "B' = A' - ?oldshift \<union> ?newshift")
+proof -
+  let ?old = "{(x1, y1), (x2, y2)}"
+  let ?new = "{(x3, y3)}"
+  from B' BA have "B' = shift (A - ?old \<union> ?new) d" by simp
+  then have "B' = shift A d - shift ?old d \<union> shift ?new d"
+    using shift_union shift_minus by presburger
+  moreover have "shift ?old d = ?oldshift" by force
+  moreover have "shift ?new d = ?newshift" by force
+  ultimately show "B' = A' - ?oldshift \<union> ?newshift" using A' by presburger
+qed
+
 (*
   If `jump` transitions A to B, then it transitions the shifted versions A', B' as well.
 *)
@@ -937,67 +956,27 @@ lemma jump_shift_inv:
     shows "jump A' B'"
 using \<open>jump A B\<close> A' B' proof (induction rule: jump.induct)
   case (left x y A B)
-  from left have "(x+d, y) \<in> A'" by simp
-  moreover from left have "(x-1+d, y) \<in> A'" by simp
-  moreover from left have "(x-2+d, y) \<notin> A'" by simp
-  moreover from left have "B' = A' - {(x+d, y), (x-1+d, y)} \<union> {(x-2+d, y)}" (is "B' = A' - ?oldshift \<union> ?newshift")
-  proof -
-    let ?old = "{(x, y), (x - 1, y)}"
-    let ?new = "{(x - 2, y)}"
-    from left have "B' = shift (A - ?old \<union> ?new) d" by blast
-    then have "B' = shift A d - shift ?old d \<union> shift ?new d" using shift_union shift_minus by presburger
-    moreover have "shift ?old d = ?oldshift" by force
-    moreover have "shift ?new d = ?newshift" by force
-    ultimately show ?thesis using left.prems(1) by presburger
-  qed
+  then have "(x+d, y) \<in> A' \<and> (x-1+d, y) \<in> A' \<and> (x-2+d, y) \<notin> A'" by simp
+  moreover from left have "B' = A' - {(x+d, y), (x-1+d, y)} \<union> {(x-2+d, y)}" 
+    using jump_shift_inv_aux by simp
   ultimately show ?case by (smt (verit, ccfv_threshold) jump.left)
 next
   case (right x y A B)
-  from right have "(x+d, y) \<in> A'" by simp
-  moreover from right have "(x+1+d, y) \<in> A'" by simp
-  moreover from right have "(x+2+d, y) \<notin> A'" by simp
-  moreover from right have "B' = A' - {(x+d, y), (x+1+d, y)} \<union> {(x+2+d, y)}" (is "B' = A' - ?oldshift \<union> ?newshift")
-  proof -
-    let ?old = "{(x, y), (x + 1, y)}"
-    let ?new = "{(x + 2, y)}"
-    from right have "B' = shift (A - ?old \<union> ?new) d" by blast
-    then have "B' = shift A d - shift ?old d \<union> shift ?new d" using shift_union shift_minus by presburger
-    moreover have "shift ?old d = ?oldshift" by force
-    moreover have "shift ?new d = ?newshift" by force
-    ultimately show ?thesis using right.prems(1) by presburger
-  qed
+  then have "(x+d, y) \<in> A' \<and> (x+1+d, y) \<in> A' \<and> (x+2+d, y) \<notin> A'" by simp
+  moreover from right have "B' = A' - {(x+d, y), (x+1+d, y)} \<union> {(x+2+d, y)}" 
+    using jump_shift_inv_aux by simp
   ultimately show ?case by (smt (verit, ccfv_threshold) jump.right)
 next
   case (up x y A B)
-  from up have "(x+d, y) \<in> A'" by simp
-  moreover from up have "(x+d, y-1) \<in> A'" by simp
-  moreover from up have "(x+d, y-2) \<notin> A'" by simp
-  moreover from up have "B' = A' - {(x+d, y), (x+d, y-1)} \<union> {(x+d, y-2)}" (is "B' = A' - ?oldshift \<union> ?newshift")
-  proof -
-    let ?old = "{(x, y), (x, y - 1)}"
-    let ?new = "{(x, y - 2)}"
-    from up have "B' = shift (A - ?old \<union> ?new) d" by blast
-    then have "B' = shift A d - shift ?old d \<union> shift ?new d" using shift_union shift_minus by presburger
-    moreover have "shift ?old d = ?oldshift" by force
-    moreover have "shift ?new d = ?newshift" by force
-    ultimately show ?thesis using up.prems(1) by presburger
-  qed
+  then have "(x+d, y) \<in> A' \<and> (x+d, y-1) \<in> A' \<and> (x+d, y-2) \<notin> A'" by simp
+  moreover from up have "B' = A' - {(x+d, y), (x+d, y-1)} \<union> {(x+d, y-2)}" 
+    using jump_shift_inv_aux by simp
   ultimately show ?case by (smt (verit, ccfv_threshold) jump.up)
 next
   case (down x y A B)
-  from down have "(x+d, y) \<in> A'" by simp
-  moreover from down have "(x+d, y+1) \<in> A'" by simp
-  moreover from down have "(x+d, y+2) \<notin> A'" by simp
-  moreover from down have "B' = A' - {(x+d, y), (x+d, y+1)} \<union> {(x+d, y+2)}" (is "B' = A' - ?oldshift \<union> ?newshift")
-  proof -
-    let ?old = "{(x, y), (x, y + 1)}"
-    let ?new = "{(x, y + 2)}"
-    from down have "B' = shift (A - ?old \<union> ?new) d" by blast
-    then have "B' = shift A d - shift ?old d \<union> shift ?new d" using shift_union shift_minus by presburger
-    moreover have "shift ?old d = ?oldshift" by force
-    moreover have "shift ?new d = ?newshift" by force
-    ultimately show ?thesis using down.prems(1) by presburger
-  qed
+  then have "(x+d, y) \<in> A' \<and> (x+d, y+1) \<in> A' \<and> (x+d, y+2) \<notin> A'" by simp
+  moreover from down have "B' = A' - {(x+d, y), (x+d, y+1)} \<union> {(x+d, y+2)}"
+    using jump_shift_inv_aux by simp
   ultimately show ?case by (smt (verit, ccfv_threshold) jump.down)
 qed
 
@@ -1056,7 +1035,6 @@ text \<open>This section strengthens another aspect of the first version of the 
   that contains the goal field, then there is still some element from A left in B. From this
   we get that the `power_sum` of such a B is strictly greater than 1.\<close>
 
-(* TODO maybe make a bit nicer? *)
 (*
   If `jump` transitions A to B, all but a finite number of elements from A are also in B.
 *)
