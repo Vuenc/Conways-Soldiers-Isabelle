@@ -1,5 +1,26 @@
 (*  Title       : LeapingFrog.thy
     Author      : Vincent Bürgin
+
+    This theory formalizes Conway's Soldiers, also known as the Leaping Frog game.
+
+    The game is played on the infinite grid (Z x N), where the top row corresponds to an y
+      coordinate of 0. An arbitrary amount of coins can be placed on the grid below the line y = 5,
+      i.e. starting at the sixth row.
+    Then the coins can be moved according to peg solitaire rules:
+      A coin may jump over an adjacent coin vertically or horizontally. The coin it jumped over
+      is removed from the board.
+    The objective is to reach the top row (y = 0) with a coin. John Conway proved that this is not
+      possible, using an argument involving the golden ratio phi: Let w = 1/phi = phi - 1.
+      Assign the field (x, y) the power w^(x+y). Then the sum of all fields occupied by an initial
+      coin configuration is at most 1, however the value of the goal field (0, 0) is 1 as well.
+      Furthermore, performing moves cannot increase the sum of occupied fields.
+      From this, it is shown that the goal field cannot be reached in a finite number of moves.
+
+    References:
+    - E. Berlekamp, J. Conway and R. Guy, Winning Ways for Your Mathematical Plays
+    - Claudi Alsina and Roger B. Nelsen, Charming Proofs: A Journey Into Elegant Mathematics
+    - Miguel de Guzmán, https://www.oma.org.ar/red/la_rana.htm (online explanation of the proof
+        as performed here, in Spanish)
 *)
 
 theory LeapingFrog
