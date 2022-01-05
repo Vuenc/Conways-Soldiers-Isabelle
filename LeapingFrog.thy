@@ -1082,57 +1082,31 @@ next
         finite.emptyI finite.insertI sup_bot.right_neutral)
 qed
 
-(* copied in from tutorial 3, because I struggled to complete the induction
-with the usual star: *)
-inductive star' :: "('a \<Rightarrow> 'a \<Rightarrow> bool) \<Rightarrow> 'a \<Rightarrow> 'a \<Rightarrow> bool" for r 
-  where
-refl': "star' r x x" |
-step': "\<lbrakk>star' r x y; r y z\<rbrakk> \<Longrightarrow> star' r x z"
-
-lemma star'_prepend: "\<lbrakk>star' r y z; r x y\<rbrakk> \<Longrightarrow> star' r x z"
-  by (induction rule: star'.induct) (auto intro: star'.intros)
-
-lemma star_eq_star':  "star r x y = star' r x y"
-  proof
-  assume "star r x y"
-  thus "star' r x y"
-    by induct (auto intro: star'.intros star'_prepend)
-next
-  assume "star' r x y"
-  thus "star r x y"
-    by induct (auto intro: star_trans)
-qed
-(* end of copied in part *)
-
-(* TODO try again with the usual star *)
 (*  
-  If `jumps` transitions A to B, all but a finite number of elements from A are also in B as well.
+  Also, if `jumps` transitions A to B, all but a finite number of elements from A are also in B.
 *)
 lemma jumps_keeps_cofinite_coins:
   assumes reaches: "jumps A B"
       and infinite: "infinite A"
     shows "\<exists>D. finite D \<and> A \<inter> B = A - D"
   using reaches infinite unfolding jumps_def
-proof -
-  have "\<lbrakk>star' jump A B; infinite A\<rbrakk> \<Longrightarrow> \<exists>D. finite D \<and> A \<inter> B = A - D"
-  proof (induction rule: star'.induct)
-    case (refl' X)
-    then show ?case by auto
-  next
-    case (step' X Y Z)
-    from step' obtain D1 where D1: "finite D1 \<and> X \<inter> Y = X - D1" by blast
-    from this have "infinite Y" by (metis Diff_infinite_finite finite_Int step'.prems)
-    from this step' obtain D2 where D2: "finite D2 \<and> Y \<inter> Z = Y - D2" using jump_keeps_cofinite_coins
-      by fastforce
+proof (induction rule: star.induct)
+  case (refl X)
+  then show ?case by auto
+next
+  case (step X Y Z)  
+  then obtain D1 where D1: "finite D1 \<and> X \<inter> Y = X - D1"
+    using jump_keeps_cofinite_coins by presburger
+  then have "infinite Y"
+    by (metis Diff_infinite_finite finite_Int step.prems)
+  from this step obtain D2 where D2: "finite D2 \<and> Y \<inter> Z = Y - D2" by blast
 
-    let ?D3 = "X - (X \<inter> Z)"
-    have "(X \<inter> Y) \<inter> (Y \<inter> Z) \<subseteq> X \<inter> Z" by blast
-    moreover have "(X \<inter> Y) \<inter> (Y \<inter> Z) = X - (D1 \<union> D2)" using D1 D2 by blast
-    ultimately have "finite ?D3"
-      by (metis D1 D2 Diff_Diff_Int Diff_Int finite_Int finite_UnI sup.absorb_iff1)
-    then show ?case by blast
-  qed
-  then show ?thesis using infinite jumps_def reaches star_eq_star' by fastforce
+  let ?D3 = "X - (X \<inter> Z)"
+  have "(X \<inter> Y) \<inter> (Y \<inter> Z) \<subseteq> X \<inter> Z" by blast
+  moreover have "(X \<inter> Y) \<inter> (Y \<inter> Z) = X - (D1 \<union> D2)" using D1 D2 by blast
+  ultimately have "finite ?D3"
+    by (metis D1 D2 Diff_Diff_Int Diff_Int finite_Int finite_UnI sup.absorb_iff1)
+  then show ?case by blast
 qed
 
 (*
