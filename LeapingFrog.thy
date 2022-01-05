@@ -813,7 +813,7 @@ next
 next
   case (down x y A B)
   (*
-    The "down" part is even more simple (don't need to deal with the y=0 upper border).
+    The "down" part is even shorter (don't need to deal with the y=0 upper border).
   *)
   let ?x = "nat (abs x)"
 
@@ -1153,5 +1153,77 @@ proof (rule ccontr)
   moreover have "jumps ?A' ?B'" using jumps_shift_inv reaches by blast
   ultimately show "False" using initial_coins_cannot_reach_goal_field by blast
 qed
+
+
+section \<open>The second-highest row can be reached\<close>
+
+text \<open>Finally, a positive result: The second-highest row can actually be reached.
+  This is shown by an example, which is minimal according to https://www.oma.org.ar/red/la_rana.htm.
+  The proof is in apply style as this turned out to be more convenient for this kind of proof.\<close>
+
+(*
+The start configuration looks like this: (Column 0 is marked with |)
+
+----|--
+xxxxxxx
+  xxxxx
+ xxxxxx
+   xx  
+
+From this, we can reach {(0, 1)} in 20 jumps.
+*)
+lemma "jumps {(-1,5), (-1,6), (0,5), (0,6), (1,5), (1,6), (2,5), (2,6),(-1,7), (-1,8), (0,7), (0,8),
+        (1,7), (2,7), (-2,7), (-3,7),(-2,6), (-2,5),(-3,5), (-4,5)}
+      {(0,1)}"
+  unfolding jumps_def
+  apply (rule star.step[where y="{(-1,4),(0,5),(0,6),(1,5),(1,6),(2,5),(2,6),(-1,7),(-1,8),(0,7),
+    (0,8),(1,7),(2,7),(-2,7),(-3,7),(-2,6),(-2,5),(-3,5),(-4,5)}"])
+  apply (rule jump.up[of "-1" 6]) apply(force)+
+  apply (rule star.step[where y="{(-1,4),(0,4),(1,5),(1,6),(2,5),(2,6),(-1,7),(-1,8),(0,7),(0,8),
+    (1,7),(2,7),(-2,7),(-3,7),(-2,6),(-2,5),(-3,5),(-4,5)}"])
+  apply (rule jump.up[of 0 6]) apply(force)+
+  apply (rule star.step[where y="{(-1,4),(0,4),(1,4),(2,5),(2,6),(-1,7),(-1,8),(0,7),(0,8),(1,7),
+    (2,7),(-2,7),(-3,7),(-2,6),(-2,5),(-3,5),(-4,5)}"])
+  apply (rule jump.up[of 1 6]) apply(force)+
+  apply (rule star.step[where y="{(-1,4),(0,4),(1,4),(2,4),(-1,7),(-1,8),(0,7),(0,8),(1,7),(2,7),
+    (-2,7),(-3,7),(-2,6),(-2,5),(-3,5),(-4,5)}"])
+  apply (rule jump.up[of 2 6]) apply(force)+
+  apply (rule star.step[where y="{(-1,4),(0,4),(1,4),(2,4),(-1,6),(0,7),(0,8),(1,7),(2,7),(-2,7),
+    (-3,7),(-2,6),(-2,5),(-3,5),(-4,5)}"])
+  apply (rule jump.up[of "-1" 8]) apply(force)+
+  apply (rule star.step[where y="{(-1,4),(0,4),(1,4),(2,4),(-1,6),(0,6),(1,7),(2,7),(-2,7),(-3,7),
+    (-2,6),(-2,5),(-3,5),(-4,5)}"])
+  apply (rule jump.up[of "0" 8]) apply(force)+
+  apply (rule star.step[where y="{(-1,4),(0,4),(1,4),(2,4),(-1,6),(0,6),(0,7),(-2,7),(-3,7),(-2,6),
+    (-2,5),(-3,5),(-4,5)}"])
+  apply (rule jump.left[of "2" 7]) apply(force)+
+  apply (rule star.step[where y="{(-1,4),(0,4),(1,4),(2,4),(-1,6),(0,6),(0,7),(-1,7),(-2,6),(-2,5),
+    (-3,5),(-4,5)}"])
+  apply (rule jump.right[of "-3" 7]) apply(force)+
+  apply (rule star.step[where y="{(-1,4),(0,4),(1,4),(2,4),(-1,5),(0,6),(0,7),(-2,6),(-2,5),(-3,5),
+    (-4,5)}"])
+  apply (rule jump.up[of "-1" 7]) apply(force)+
+  apply (rule star.step[where y="{(-1,4),(0,4),(1,4),(2,4),(-1,5),(0,5),(-2,6),(-2,5),(-3,5),
+    (-4,5)}"])
+  apply (rule jump.up[of "0" 7]) apply(force)+
+  apply (rule star.step[where y="{(-1,4),(0,4),(1,4),(2,4),(-1,5),(0,5),(-2,4),(-3,5),(-4,5)}"])
+  apply (rule jump.up[of "-2" 6]) apply(force)+
+  apply (rule star.step[where y="{(-1,4),(0,4),(1,4),(2,4),(-1,5),(0,5),(-2,4),(-2,5)}"])
+  apply (rule jump.right[of "-4" 5]) apply(force)+
+  apply (rule star.step[where y="{(-1,4),(0,3),(1,4),(2,4),(-1,5),(-2,4),(-2,5)}"])
+  apply (rule jump.up[of 0 5]) apply(force)+
+  apply (rule star.step[where y="{(-1,4),(0,3),(0,4),(-1,5),(-2,4),(-2,5)}"])
+  apply (rule jump.left[of 2 4]) apply(force)+
+  apply (rule star.step[where y="{(-1,4),(0,2),(-1,5),(-2,4),(-2,5)}"])
+  apply (rule jump.up[of 0 4]) apply(force)+
+  apply (rule star.step[where y="{(0,4),(0,2),(-1,5),(-2,5)}"])
+  apply (rule jump.right[of "-2" 4]) apply(force)+
+  apply (rule star.step[where y="{(0,4),(0,2),(0,5)}"])
+  apply (rule jump.right[of "-2" 5]) apply(force)+
+  apply (rule star.step[where y="{(0,3),(0,2)}"])
+  apply (rule jump.up[of 0 5]) apply(force)+
+  apply (rule star.step[where y="{(0,1)}"])
+  apply (rule jump.up[of 0 3]) apply(force)+
+  done
 
 end
