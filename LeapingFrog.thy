@@ -400,8 +400,8 @@ proof -
         by (smt (verit, ccfv_SIG) notinF insertCI nat_0_le point_pow.elims zero_less_nat_eq)
     next
       case False
-      then show ?thesis
-        by (smt (verit, del_insts) notinF insert_iff int_nat_eq point_pow.elims prod.inject zero_less_nat_eq)
+      then show ?thesis by (smt (verit, del_insts) notinF insert_iff 
+            int_nat_eq point_pow.elims prod.inject zero_less_nat_eq)
     qed
   qed
 
@@ -553,8 +553,8 @@ proof -
   have x_ge_0: "x > 0 \<Longrightarrow> suminf (point_pow max_initial_coins x) = 2*w^(x+3)" for x
   proof -
     assume "x > 0"
-    have point_pow_unfold: "point_pow max_initial_coins x y = (if y \<ge> 5 then 2*w^(x+y) else 0)" for y
-      by (simp add: \<open>x > 0\<close> max_initial_coins_def)
+    have point_pow_unfold: "point_pow max_initial_coins x y = (if y \<ge> 5 then 2*w^(x+y) else 0)" 
+      for y by (simp add: \<open>x > 0\<close> max_initial_coins_def)
     let ?f = "(\<lambda>y. (if y \<ge> 5 then 2*w^(x+y) else 0))"
 
     have 1: "(\<lambda>y. 2*w^(x+y+5)) sums s \<Longrightarrow> ?f sums s" for s
@@ -573,7 +573,8 @@ proof -
 
     have "2 \<le> x+5" by simp
     then have "2*w^(x+5)/w^2 = 2*w^(x+5-2)" using power_diff
-      by (smt (verit, ccfv_threshold) comm_semiring_class.distrib divide_eq_0_iff field_class.field_divide_inverse real_sqrt_eq_1_iff w_def)
+      by (smt (verit, ccfv_threshold) comm_semiring_class.distrib divide_eq_0_iff
+          field_class.field_divide_inverse real_sqrt_eq_1_iff w_def)
     moreover have "x+5-2 = x+3" by simp
     ultimately have w_pow_diff: "2*w^(x+5)/w^2 = 2*w^(x+3)" by simp
 
@@ -689,11 +690,14 @@ proof (induction rule: jump.induct)
   let ?full_diff = "w^(y + nat (abs (x-2))) - w^(y + nat (abs (x-1))) - w^(y + nat (abs x))"
   have power_sum_B: "power_sum (A - {(x, y), (x - 1, y)} \<union> {(x - 2, y)})
       = power_sum A + ?full_diff"
-    using \<open>(x, y) \<in> A\<close> \<open>(x-1, y) \<in> A\<close> \<open>(x-2, y) \<notin> A\<close> power_sum_minus_singleton power_sum_union_singleton
+    using \<open>(x, y) \<in> A\<close> \<open>(x-1, y) \<in> A\<close> \<open>(x-2, y) \<notin> A\<close> power_sum_minus_singleton 
+      power_sum_union_singleton
     by (smt (verit, del_insts) Diff_iff Diff_insert2 add.commute insertE insert_Diff prod.inject)
 
-  then have "?full_diff = w^y*w^(nat (abs (x-2))) - w^y*w^(nat (abs (x-1))) - w^y*w^(nat (abs x))" by (metis power_add)
-  then have full_diff_diff: "?full_diff = w^y * (w^(nat (abs (x-2))) - w^(nat (abs (x-1))) - w^(nat (abs x)))" 
+  then have "?full_diff = w^y*w^(nat (abs (x-2))) - w^y*w^(nat (abs (x-1))) - w^y*w^(nat (abs x))"
+    by (metis power_add)
+  then have full_diff_diff: 
+    "?full_diff = w^y * (w^(nat (abs (x-2))) - w^(nat (abs (x-1))) - w^(nat (abs x)))" 
     (is "?full_diff = w^y * ?diff") by (simp add: right_diff_distrib)
 
   have "?diff  \<le> 0"
@@ -713,7 +717,9 @@ proof (induction rule: jump.induct)
         ultimately show ?thesis by presburger
       qed
       then have "?diff = w^(?x-2) - w^(?x-2+1) - w^(?x-2+2)"
-        by (smt (verit, del_insts) Nat.add_diff_assoc2 Nat.diff_diff_right One_nat_def cancel_comm_monoid_add_class.diff_cancel diff_is_0_eq' diff_zero le_add2 linorder_linear nat_0_iff nat_1_add_1 nat_2 nat_diff_distrib plus_1_eq_Suc x_geq_2)
+        by (smt (verit, del_insts) Nat.add_diff_assoc2 Nat.diff_diff_right One_nat_def
+            cancel_comm_monoid_add_class.diff_cancel diff_is_0_eq' diff_zero le_add2 linorder_linear
+            nat_0_iff nat_1_add_1 nat_2 nat_diff_distrib plus_1_eq_Suc x_geq_2)
       then show ?thesis by (smt (verit, ccfv_SIG) w_recurrence)
     next
       case x_eq_1_or_2: False
@@ -738,11 +744,14 @@ next
   let ?full_diff = "w^(y + nat (abs (x+2))) - w^(y + nat (abs (x+1))) - w^(y + nat (abs x))"
   have power_sum_B: "power_sum (A - {(x, y), (x + 1, y)} \<union> {(x + 2, y)})
       = power_sum A + ?full_diff"
-    using \<open>(x, y) \<in> A\<close> \<open>(x+1, y) \<in> A\<close> \<open>(x+2, y) \<notin> A\<close> power_sum_minus_singleton power_sum_union_singleton
+    using \<open>(x, y) \<in> A\<close> \<open>(x+1, y) \<in> A\<close> \<open>(x+2, y) \<notin> A\<close> power_sum_minus_singleton
+      power_sum_union_singleton
     by (smt (z3) Diff_iff Diff_insert2 add.commute insertE insert_Diff prod.inject)
 
-  then have "?full_diff = w^y*w^(nat (abs (x+2))) - w^y*w^(nat (abs (x+1))) - w^y*w^(nat (abs x))" by (metis power_add)
-  then have full_diff_diff: "?full_diff = w^y * (w^(nat (abs (x+2))) - w^(nat (abs (x+1))) - w^(nat (abs x)))" 
+  then have "?full_diff = w^y*w^(nat (abs (x+2))) - w^y*w^(nat (abs (x+1))) - w^y*w^(nat (abs x))" 
+    by (metis power_add)
+  then have full_diff_diff:
+      "?full_diff = w^y * (w^(nat (abs (x+2))) - w^(nat (abs (x+1))) - w^(nat (abs x)))" 
     (is "?full_diff = w^y * ?diff") by (simp add: right_diff_distrib)
 
   have "?diff  \<le> 0"
@@ -762,7 +771,9 @@ next
         ultimately show ?thesis by presburger
       qed
       then have "?diff = w^(?x-2) - w^(?x-2+1) - w^(?x-2+2)"
-        by (smt (verit, del_insts) Nat.add_diff_assoc2 Nat.diff_diff_right One_nat_def cancel_comm_monoid_add_class.diff_cancel diff_is_0_eq' diff_zero le_add2 linorder_linear nat_0_iff nat_1_add_1 nat_2 nat_diff_distrib plus_1_eq_Suc x_leq_minus2)
+        by (smt (verit, del_insts) Nat.add_diff_assoc2 Nat.diff_diff_right One_nat_def
+            cancel_comm_monoid_add_class.diff_cancel diff_is_0_eq' diff_zero le_add2 linorder_linear
+            nat_0_iff nat_1_add_1 nat_2 nat_diff_distrib plus_1_eq_Suc x_leq_minus2)
       then show ?thesis by (smt (verit, ccfv_SIG) w_recurrence)
     next
       case x_eq_minus_1_or_minus_2: False
@@ -788,7 +799,8 @@ next
   let ?full_diff = "w^(?x + (y-2)) - w^(?x + (y-1)) - w^(?x + y)"
   have power_sum_B: "power_sum (A - {(x, y), (x, y-1)} \<union> {(x, y-2)})
       = power_sum A + ?full_diff"
-    using \<open>(x, y) \<in> A\<close> \<open>(x, y-1) \<in> A\<close> \<open>(x, y-2) \<notin> A\<close> power_sum_minus_singleton power_sum_union_singleton
+    using \<open>(x, y) \<in> A\<close> \<open>(x, y-1) \<in> A\<close> \<open>(x, y-2) \<notin> A\<close> power_sum_minus_singleton
+      power_sum_union_singleton
     by (smt (verit) Diff_insert2 diff_diff_left insert_Diff insert_iff nat_1_add_1 prod.inject)
 
   then have "?full_diff = w^(?x)*w^(y-2) - w^(?x)*w^(y-1) - w^(?x)*w^y" by (metis power_add)
@@ -820,8 +832,10 @@ next
   let ?full_diff = "w^(?x + (y+2)) - w^(?x + (y+1)) - w^(?x + y)"
   have power_sum_B: "power_sum (A - {(x, y), (x, y+1)} \<union> {(x, y+2)})
       = power_sum A + ?full_diff"
-    using \<open>(x, y) \<in> A\<close> \<open>(x, y+1) \<in> A\<close> \<open>(x, y+2) \<notin> A\<close> power_sum_minus_singleton power_sum_union_singleton
-    by (smt (verit) Diff_iff Diff_insert2 add_diff_cancel_left' diff_is_0_eq' insertE insert_Diff nle_le one_neq_zero prod.inject)
+    using \<open>(x, y) \<in> A\<close> \<open>(x, y+1) \<in> A\<close> \<open>(x, y+2) \<notin> A\<close> power_sum_minus_singleton
+      power_sum_union_singleton
+    by (smt (verit) Diff_iff Diff_insert2 add_diff_cancel_left' diff_is_0_eq' insertE insert_Diff
+        nle_le one_neq_zero prod.inject)
 
   then have "?full_diff = w^(?x)*w^(y+2) - w^(?x)*w^(y+1) - w^(?x)*w^y" by (metis power_add)
   then have full_diff_diff: "?full_diff = w^(?x) * (w^(y+2) - w^(y+1) - w^y)" 
