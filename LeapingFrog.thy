@@ -1,10 +1,27 @@
+(*  Title       : LeapingFrog.thy
+    Author      : Vincent Bürgin
+*)
+
 theory LeapingFrog
   imports Main HOL.Real HOL.NthRoot HOL.Boolean_Algebras HOL.Series "HOL-IMP.Star"
 begin
 
+
+section \<open>The number w\<close>
+
+(*
+  Definition of the number w = (golden ratio) - 1
+*)
 definition w :: "real" where
 "w = (sqrt 5 - 1)/2"
 
+(*
+  Recurrence relations the powers of w satisfy:
+    -   w^2 = 1 - w
+    -   w^(n+1) + w^(n+2) = w^n
+
+  These are the crucial properties of w that make the argument work.
+*)
 lemma w_squared: "w^2 = 1 - w"
 proof -
   have "w^2 = (sqrt 5 - 1)^2 / 4"
@@ -16,6 +33,17 @@ proof -
   ultimately show "w^2 = 1 - w" by force
 qed
 
+lemma w_recurrence: "w^(n+1) + w^(n+2) = w^n"
+proof -
+  have "w^(n+1) + w^(n+2) = w^n*(w + w^2)"
+    by (smt (verit) power_add power_one_right right_diff_distrib)
+  moreover have "w + w^2 = 1" using w_squared by simp
+  ultimately show ?thesis by simp
+qed
+
+(*
+  w is in (0, 1): We will need this to prove the limit of the geometric series with base w.
+*)
 lemma w_range: "w > 0 \<and> w < 1"
 proof -
   have "sqrt 5 > 1" by force
@@ -25,14 +53,9 @@ proof -
   then show ?thesis using 1 2 by blast
 qed
 
-lemma w_recurrence: "w^(n+1) + w^(n+2) = w^n"
-proof -
-  have "w^(n+1) + w^(n+2) = w^n*(w + w^2)"
-    by (smt (verit) power_add power_one_right right_diff_distrib)
-  moreover have "w + w^2 = 1" using w_squared by simp
-  ultimately show ?thesis by simp
-qed
-
+(*
+  We will use this to have an upper bound for 1/(1-w).
+*)
 lemma w_bound:"1 - w > 1/4"
 proof -
   have "sqrt 5 - 1 > 1" by (smt (verit, ccfv_SIG) real_sqrt_four real_sqrt_less_iff)
@@ -41,9 +64,24 @@ proof -
   then show ?thesis by (simp add: w_squared)
 qed
 
+section \<open>Leaping Frog game definitions\<close>
+
+(*
+  The game is played on a grid in the half-plane: grid cells have `int` x coordinates and `nat`
+    y coordinates. A coin configuration `coins` is a set of grid cell positions.
+*)
 type_synonym position = "(int \<times> nat)"
 type_synonym coins = "position set"
 
+subsection \<open>Jumping predicates\<close>
+(*
+  A coin configuration A can transitions to a coin configuration B as follows:  A coin in A can jump
+    over an (horizontally or vertically) adjacent coin if the next cell behind is unoccupied.
+    The coin that it jumped over is removed. The resulting configuration is B, and A and B are
+    related via `jump`.
+
+  Example: |o|o|.|  \<longrightarrow>  |.|.|o| (left coin jumps over the middle coin).
+*)
 inductive jump :: "coins \<Rightarrow> coins \<Rightarrow> bool" where
   left: "\<lbrakk>(x,y) \<in> A; (x-1, y) \<in> A; (x-2, y) \<notin> A; B = (A - {(x,y), (x-1,y)}) \<union> {(x-2, y)}\<rbrakk>
     \<Longrightarrow> jump A B"
@@ -54,26 +92,40 @@ inductive jump :: "coins \<Rightarrow> coins \<Rightarrow> bool" where
 | down: "\<lbrakk>(x,y) \<in> A; (x, y+1) \<in> A; (x, y+2) \<notin> A; B = (A - {(x,y), (x,y+1)}) \<union> {(x, y+2)}\<rbrakk>
     \<Longrightarrow> jump A B"
 
+(*
+  A and B are related via `jumps` if B can be reached from A via a chain of multiple `jump`s.
+*)
 definition jumps :: "coins \<Rightarrow> coins \<Rightarrow> bool"  where
 "jumps = star jump"
 
-lemma example_right: "jump {(0, 0), (1, 0)} {(2, 0)}" using jump.right[of 0 0]
-  by (smt (verit, ccfv_SIG) Diff_cancel Diff_iff Un_Diff_cancel Un_Diff_cancel2 insert_iff prod.inject sup_bot.right_neutral)
-lemma example_left: "jump {(0, 0), (-1, 0)} {(-2, 0)}" using jump.left[of 0 0]
-  by (smt (z3) Diff_cancel Un_Diff_cancel2 insertCI insertE insert_absorb insert_is_Un insert_not_empty prod.inject)
-lemma example_up: "jump {(0, 2), (0, 1)} {(0, 0)}" using jump.up[of 0 2]
-  by (metis Diff_cancel One_nat_def Un_Diff_cancel2 add_diff_cancel_left' insert_absorb insert_iff insert_is_Un insert_not_empty nat_1_add_1 plus_1_eq_Suc plus_nat.simps(2) prod.inject zero_neq_numeral)
-lemma example_down: "jump {(0, 0), (0, 1)} {(0, 2)}" using jump.down[of 0 0]
-  by (metis (no_types, lifting) Diff_cancel One_nat_def Un_Diff_cancel2 add.commute insert_absorb insert_iff insert_is_Un insert_not_empty nat_1_add_1 one_eq_numeral_iff plus_1_eq_Suc plus_nat.simps(2) prod.inject semiring_norm(85) zero_neq_numeral)
+(*
+  Some examples of the `jump` and `jumps` predicates
+*)
+lemma example_right: "jump {(0, 0), (1, 0)} {(2, 0)}"
+  by (rule jump.right[of 0 0]) auto
+lemma example_left: "jump {(0, 0), (-1, 0)} {(-2, 0)}"
+  by (rule jump.left[of 0 0]) auto
+lemma example_up: "jump {(0, 2), (0, 1)} {(0, 0)}"
+  by (rule jump.up[of 0 2]) auto
+lemma example_down: "jump {(0, 0), (0, 1)} {(0, 2)}"
+  by (rule jump.down[of 0 0]) auto
 lemma example_two_jumps: "jumps {(0,0), (0,1), (1,2)} {(2,2)}"
 unfolding jumps_def proof (rule star.step)
-  show "jump {(0,0), (0,1), (1,2)} {(0,2), (1,2)}" using jump.down[of 0 0]
-    by (smt (verit, del_insts) Diff_insert2 Diff_insert_absorb One_nat_def add.commute add_diff_cancel_left' insert_absorb insert_commute insert_iff insert_is_Un insert_not_empty nat_1_add_1 plus_1_eq_Suc plus_nat.simps(2) prod.inject zero_neq_numeral)
-  have "jump {(0,2), (1,2)} {(2,2)}" using jump.right[of 0 0]
-    by (smt (verit, del_insts) Diff_cancel Un_Diff_cancel2 insert_absorb insert_iff insert_is_Un insert_not_empty prod.inject right)
+  show "jump {(0,0), (0,1), (1,2)} {(0,2), (1,2)}"
+    by (rule jump.down[of 0 0]) auto
+  have "jump {(0,2), (1,2)} {(2,2)}"
+    by (rule jump.right[of 0 2]) auto 
   then show "star jump {(0, 2), (1, 2)} {(2, 2)}" by blast
 qed
 
+subsection \<open>Coin grid and initial configurations\<close>
+(*
+  Definitions and facts about initial configurations:
+
+  In the beginning of the game, coins may be placed below the line "y = 5". Coin configurations
+    where all coins are below this line are initial configurations. Any initial configuration is a
+    subset of the maximal initial configuration, where all coins below the line are present.
+*)
 fun below_the_line :: "position \<Rightarrow> bool" where
 "below_the_line (_, y) = (y \<ge> 5)"
 
@@ -89,46 +141,31 @@ definition all_coins :: "coins" where
 lemma initial_coins_subset: "initial_coins coins \<Longrightarrow> coins \<subseteq> max_initial_coins"
   using initial_coins_def max_initial_coins_def by fastforce
 
+subsection \<open>Assigning powers of w to grid cells/Sums of powers of w to coin configurations\<close>
+
+(*
+  In the original proof, every grid cell is assigned the power w^(|x|+y).
+
+  We want to avoid series over `int` since `Series.thy` uses series over `nat`. We therefore assign
+    powers as follows:
+  - The coordinate (0::nat, y::nat) is assigned w^y
+  - The coordinate (x::nat, y::nat), x > 0, is assigned 2*w^(x+y) and captures the sum of the powers
+      assigned to the grid cells (-x::int, y) and (x::int, y)
+
+  `point_pow` defines this assignment for all positions (x, y) contained in a coin configuration.
+*)
 fun point_pow :: "coins \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> real" where
 "point_pow c x y = (if (int(x), y) \<in> c then w^(x+y) else 0)
   + (if (-int(x), y) \<in> c \<and> x > 0 then w^(x+y) else 0)"
 
+(*
+  `power_sum` sums up the values of w^(x+y) for all coin positions in a coin configuration via
+    a double series.
+*)
 fun power_sum :: "coins \<Rightarrow> real" where
 "power_sum c = suminf (\<lambda>x. suminf (point_pow c x))"
-            
-(* lemmas finite_tuple_induct = finite_induct[split_format(complete)] *)
 
-lemma series_one_term_different:
-  assumes f_g_diff: "(g :: nat \<Rightarrow> real) (k::nat) = f k + d"
-      and f_g_eq: "\<And>i. i \<noteq> k \<Longrightarrow> f i = g i"
-      and "summable f"
-    shows "suminf g = suminf f + d"
-proof -
-  have f_initsum:  "(\<lambda>i. f (i + (k+1))) sums s \<longleftrightarrow> f sums (s + (\<Sum>i<k+1. f i))" 
-    for s using sums_iff_shift by blast
-  have g_initsum:  "(\<lambda>i. g (i + (k+1))) sums s \<longleftrightarrow> g sums (s + (\<Sum>i<k+1. g i))" 
-    for s using sums_iff_shift by blast
-  have init_diff: "(\<Sum>i<k+1. g i) = (\<Sum>i<k+1. f i) + d"
-  proof -
-    have "(\<Sum>i<k+1. g i) = (\<Sum>i<k. g i) + g k" by simp
-    moreover have "(\<Sum>i<k+1. f i) = (\<Sum>i<k. f i) + f k" by simp
-    moreover have "(\<Sum>i<k. g i) = (\<Sum>i<k. f i)" using f_g_eq by simp
-    ultimately show ?thesis using f_g_diff by simp
-  qed
-  have tails_eq: "(\<lambda>i. f (i + (k+1))) = (\<lambda>i. g (i + (k+1)))" using f_g_eq by simp
-  have "f sums s \<Longrightarrow> g sums (s + d)" for s
-  proof -
-    assume "f sums s"
-    then have "(\<lambda>i. f (i + (k+1))) sums (s - (\<Sum>i<k+1. f i))"
-      using f_initsum by auto
-    then have "(\<lambda>i. f (i + (k+1))) sums (s - (\<Sum>i<k+1. f i))"
-      using tails_eq by simp
-    then have "(\<lambda>i. f (i + (k+1))) sums (s - ((\<Sum>i<k+1. g i) - d))"
-      using init_diff by simp
-    then show "g sums (s + d)" using g_initsum tails_eq by simp
-  qed
-  then show ?thesis using \<open>summable f\<close> sums_iff by blast
-qed
+section \<open>Power sums of w\<close>
 
 (* kind of specific lemma, but an argument of this form
    is needed quite often in the following
@@ -246,6 +283,41 @@ proof -
 
   ultimately show ?thesis
     using \<open>summable ?f\<close> summable_nonneg_comparison_test by presburger
+qed
+
+
+
+
+lemma series_one_term_different:
+  assumes f_g_diff: "(g :: nat \<Rightarrow> real) (k::nat) = f k + d"
+      and f_g_eq: "\<And>i. i \<noteq> k \<Longrightarrow> f i = g i"
+      and "summable f"
+    shows "suminf g = suminf f + d"
+proof -
+  have f_initsum:  "(\<lambda>i. f (i + (k+1))) sums s \<longleftrightarrow> f sums (s + (\<Sum>i<k+1. f i))" 
+    for s using sums_iff_shift by blast
+  have g_initsum:  "(\<lambda>i. g (i + (k+1))) sums s \<longleftrightarrow> g sums (s + (\<Sum>i<k+1. g i))" 
+    for s using sums_iff_shift by blast
+  have init_diff: "(\<Sum>i<k+1. g i) = (\<Sum>i<k+1. f i) + d"
+  proof -
+    have "(\<Sum>i<k+1. g i) = (\<Sum>i<k. g i) + g k" by simp
+    moreover have "(\<Sum>i<k+1. f i) = (\<Sum>i<k. f i) + f k" by simp
+    moreover have "(\<Sum>i<k. g i) = (\<Sum>i<k. f i)" using f_g_eq by simp
+    ultimately show ?thesis using f_g_diff by simp
+  qed
+  have tails_eq: "(\<lambda>i. f (i + (k+1))) = (\<lambda>i. g (i + (k+1)))" using f_g_eq by simp
+  have "f sums s \<Longrightarrow> g sums (s + d)" for s
+  proof -
+    assume "f sums s"
+    then have "(\<lambda>i. f (i + (k+1))) sums (s - (\<Sum>i<k+1. f i))"
+      using f_initsum by auto
+    then have "(\<lambda>i. f (i + (k+1))) sums (s - (\<Sum>i<k+1. f i))"
+      using tails_eq by simp
+    then have "(\<lambda>i. f (i + (k+1))) sums (s - ((\<Sum>i<k+1. g i) - d))"
+      using init_diff by simp
+    then show "g sums (s + d)" using g_initsum tails_eq by simp
+  qed
+  then show ?thesis using \<open>summable f\<close> sums_iff by blast
 qed
 
 lemma power_sum_union_singleton:
