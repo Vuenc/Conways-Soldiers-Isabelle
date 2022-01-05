@@ -16,6 +16,15 @@
       Furthermore, performing moves cannot increase the sum of occupied fields.
       From this, it is shown that the goal field cannot be reached in a finite number of moves.
 
+          ................... <-- Goal row.
+          ...................
+          ...................
+          ...................
+          ...................
+          ooooooooooooooooooo <-- On this row and below, coins may be placed.
+          ooooooooooooooooooo
+          ooooooooooooooooooo     The grid extends infinitely to the left, right and bottom.
+
     References:
     - E. Berlekamp, J. Conway and R. Guy, Winning Ways for Your Mathematical Plays
     - Claudi Alsina and Roger B. Nelsen, Charming Proofs: A Journey Into Elegant Mathematics
