@@ -9,11 +9,11 @@
     Then the coins can be moved according to peg solitaire rules:
       A coin may jump over an adjacent coin vertically or horizontally. The coin it jumped over
       is removed from the board.
-    The objective is to reach the top row (y = 0) with a coin. John Conway proved that this is not
-      possible, using an argument involving the golden ratio phi: Let w = 1/phi = phi - 1.
-      Assign the field (x, y) the power w^(x+y). Then the sum of all fields occupied by an initial
-      coin configuration is at most 1, however the value of the goal field (0, 0) is 1 as well.
-      Furthermore, performing moves cannot increase the sum of occupied fields.
+    The objective is to get a coin to the top row (y = 0). John Conway proved that this is not
+      possible, using a number related to the golden ratio phi: Let w = 1/phi = phi - 1.
+      Assign to the field (x, y) the power w^(|x|+y). Then the sum of all fields occupied by an
+      initial coin configuration is at most 1. Furthermore, performing moves cannot increase the
+      sum of occupied fields. However the value of the goal field (0, 0) is 1 as well:
       From this, it is shown that the goal field cannot be reached in a finite number of moves.
 
           ................... <-- Goal row.
@@ -104,7 +104,7 @@ type_synonym coins = "position set"
 
 subsection \<open>Jumping predicates\<close>
 (*
-  A coin configuration A can transitions to a coin configuration B as follows:  A coin in A can jump
+  A coin configuration A can transition to a coin configuration B as follows: A coin in A can jump
     over an (horizontally or vertically) adjacent coin if the next cell behind is unoccupied.
     The coin that it jumped over is removed. The resulting configuration is B, and A and B are
     related via `jump`.
@@ -1302,11 +1302,11 @@ text \<open>Finally, a positive result: The second-highest row can actually be r
   The start configuration looks like this, and has 20 coins: (Column 0 is marked with |)
 
       ------|----
-      ..ooooooo..
-      ....ooooo..
-      ...oooooo..
-      .....oo....
-      ...........
+      ..ooooooo..  5
+      ....ooooo..  6
+      ...oooooo..  7
+      .....oo....  8
+      ...........  9
 
   From this, we can reach {(0, 1)} in 19 jumps.
 *)
