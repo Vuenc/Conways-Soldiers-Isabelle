@@ -34,3 +34,10 @@ This is then strengthened in two ways:
 4. *From any (possibly infinite) set of initial coins, no field (x, 0) on the goal row can be reached* (by combining 2. and 3.)
 
 Finally, I showed that the second-highest row *can* be reached by implementing an example of how to reach it.
+
+### References
+- E. Berlekamp, J. Conway and R. Guy, *Winning Ways for Your Mathematical Plays*
+- Claudi Alsina and Roger B. Nelsen, *Charming Proofs: A Journey Into Elegant Mathematics*
+- Miguel de Guzmán, https://www.oma.org.ar/red/la_rana.htm (online explanation of the proof	as performed here, in Spanish)
+
+The game can be played here: https://www.cleverlearning.co.uk/blogs/blogConwayInteractive.php
